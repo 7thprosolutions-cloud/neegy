@@ -1,0 +1,138 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: radial-gradient(circle at 50% 20%, #2b2440 0%, #14101f 60%, #0a0812 100%);
+  color: #f4e9c9;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+.stage {
+  position: relative;
+  width: 960px;
+  max-width: 96vw;
+  margin: 3vh auto 0;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px 10px;
+  letter-spacing: 1px;
+  font-weight: bold;
+  font-size: 15px;
+  color: #ffd76a;
+  text-shadow: 0 0 6px rgba(255, 215, 106, 0.5);
+}
+
+.hud-item span {
+  color: #fff6df;
+}
+
+.lives {
+  color: #ff5f6d;
+  letter-spacing: 4px;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 960 / 480;
+  background: linear-gradient(180deg, #241a3d 0%, #3a2a5c 55%, #201530 100%);
+  border: 2px solid #ffd76a55;
+  border-radius: 10px;
+  box-shadow: 0 0 40px rgba(255, 215, 106, 0.08), inset 0 0 60px rgba(0,0,0,0.4);
+  cursor: crosshair;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  background: rgba(10, 8, 18, 0.72);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h1 {
+  margin: 0;
+  font-size: 56px;
+  letter-spacing: 6px;
+  color: #ffd76a;
+  text-shadow: 0 0 20px rgba(255, 215, 106, 0.6);
+}
+
+.overlay .tagline {
+  margin: 0 0 6px;
+  color: #f4e9c9cc;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.overlay .hint {
+  max-width: 480px;
+  color: #d8cdb0;
+  font-size: 14px;
+  margin: 4px 0 14px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+  font-size: 14px;
+  color: #f4e9c9;
+}
+
+.controls b {
+  color: #ffd76a;
+}
+
+#startBtn {
+  padding: 12px 38px;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b5762a, 0 6px 16px rgba(0,0,0,0.4);
+  transition: transform 0.05s ease;
+}
+
+#startBtn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #b5762a, 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.footnote {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #f4e9c980;
+}
+
+.overlay .result {
+  font-size: 20px;
+  color: #ff9f6a;
+  margin: 4px 0 2px;
+}

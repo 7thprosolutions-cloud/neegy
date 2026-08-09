@@ -6,8 +6,9 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: radial-gradient(circle at 50% 20%, #2b2440 0%, #14101f 60%, #0a0812 100%);
-  color: #f4e9c9;
+  background: linear-gradient(180deg, #5c94fc 0%, #9fd0ff 45%, #eaf8ff 100%);
+  background-attachment: fixed;
+  color: #2b2010;
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
   overflow: hidden;
 }
@@ -27,16 +28,16 @@ html, body {
   letter-spacing: 1px;
   font-weight: bold;
   font-size: 15px;
-  color: #ffd76a;
-  text-shadow: 0 0 6px rgba(255, 215, 106, 0.5);
+  color: #e8590c;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .hud-item span {
-  color: #fff6df;
+  color: #2b2010;
 }
 
 .lives {
-  color: #ff5f6d;
+  color: #e4000f;
   letter-spacing: 4px;
 }
 
@@ -44,10 +45,10 @@ canvas {
   display: block;
   width: 100%;
   aspect-ratio: 960 / 480;
-  background: linear-gradient(180deg, #241a3d 0%, #3a2a5c 55%, #201530 100%);
-  border: 2px solid #ffd76a55;
+  background: linear-gradient(180deg, #4ea9ff 0%, #bfe6ff 75%, #e8f8ff 100%);
+  border: 3px solid #ffffffaa;
   border-radius: 10px;
-  box-shadow: 0 0 40px rgba(255, 215, 106, 0.08), inset 0 0 60px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 3px #2b2010, 0 10px 24px rgba(20, 20, 40, 0.35);
   cursor: crosshair;
 }
 
@@ -61,7 +62,7 @@ canvas {
   justify-content: center;
   gap: 8px;
   text-align: center;
-  background: rgba(10, 8, 18, 0.72);
+  background: rgba(255, 255, 255, 0.82);
   border-radius: 10px;
   padding: 20px;
 }
@@ -74,13 +75,13 @@ canvas {
   margin: 0;
   font-size: 56px;
   letter-spacing: 6px;
-  color: #ffd76a;
-  text-shadow: 0 0 20px rgba(255, 215, 106, 0.6);
+  color: #e8590c;
+  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.8), 0 0 20px rgba(232, 89, 12, 0.25);
 }
 
 .overlay .tagline {
   margin: 0 0 6px;
-  color: #f4e9c9cc;
+  color: #2b2010cc;
   letter-spacing: 2px;
   text-transform: uppercase;
   font-size: 13px;
@@ -88,7 +89,7 @@ canvas {
 
 .overlay .hint {
   max-width: 480px;
-  color: #d8cdb0;
+  color: #4a3a20;
   font-size: 14px;
   margin: 4px 0 14px;
 }
@@ -99,11 +100,11 @@ canvas {
   gap: 4px;
   margin-bottom: 18px;
   font-size: 14px;
-  color: #f4e9c9;
+  color: #2b2010;
 }
 
 .controls b {
-  color: #ffd76a;
+  color: #e8590c;
 }
 
 #startBtn {
@@ -116,13 +117,13 @@ canvas {
   border: none;
   border-radius: 30px;
   cursor: pointer;
-  box-shadow: 0 4px 0 #b5762a, 0 6px 16px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 0 #b5762a, 0 6px 16px rgba(0,0,0,0.25);
   transition: transform 0.05s ease;
 }
 
 #startBtn:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #b5762a, 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 1px 0 #b5762a, 0 2px 8px rgba(0,0,0,0.25);
 }
 
 #startBtn:disabled {
@@ -133,11 +134,11 @@ canvas {
 .footnote {
   margin-top: 16px;
   font-size: 12px;
-  color: #f4e9c980;
+  color: #4a3a2080;
 }
 
 .overlay .result {
   font-size: 20px;
-  color: #ff9f6a;
+  color: #c62828;
   margin: 4px 0 2px;
 }

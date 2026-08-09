@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+Sprite/
+package.json
+package-lock.json

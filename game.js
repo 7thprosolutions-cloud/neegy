@@ -53,30 +53,31 @@
   Promise.all([
     ...Array.from({ length: 8 }, (_, i) => loadImage(`assets/sprites/player/walk${i + 1}.png`)),
     ...Array.from({ length: 6 }, (_, i) => loadImage(`assets/sprites/player/jump${i + 1}.png`)),
-    loadImage("assets/sprites/enemy/walk_a.png"),
-    loadImage("assets/sprites/enemy/walk_b.png"),
+    ...Array.from({ length: 8 }, (_, i) => loadImage(`assets/sprites/enemy/walk${i + 1}.png`)),
   ]).then((imgs) => {
     sprites.playerWalk = imgs.slice(0, 8);
     sprites.playerJump = imgs.slice(8, 14);
-    sprites.enemyWalk = imgs.slice(14, 16);
+    sprites.enemyWalk = imgs.slice(14, 22);
     assetsReady = true;
     const btn = document.getElementById("startBtn");
     if (btn) btn.disabled = false;
   });
+
+  const WALK_FRAME_STEP = 0.6; // legPhase units per animation frame
 
   function getPlayerFrame() {
     if (!player.onGround) {
       return player.vy < 0 ? sprites.playerJump[2] : sprites.playerJump[4];
     }
     if (player.vx !== 0) {
-      const idx = Math.floor(player.legPhase / 0.6) % 8;
+      const idx = Math.floor(player.legPhase / WALK_FRAME_STEP) % 8;
       return sprites.playerWalk[idx];
     }
     return sprites.playerWalk[0];
   }
 
   function getEnemyFrame(en) {
-    const idx = Math.floor(en.legPhase / 0.5) % 2;
+    const idx = Math.floor(en.legPhase / WALK_FRAME_STEP) % 8;
     return sprites.enemyWalk[idx];
   }
 
@@ -395,52 +396,133 @@
   function drawBackground() {
     ctx.clearRect(0, 0, W, H);
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "#241a3d");
-    g.addColorStop(0.55, "#3a2a5c");
-    g.addColorStop(1, "#201530");
+    g.addColorStop(0, "#4ea9ff");
+    g.addColorStop(0.75, "#bfe6ff");
+    g.addColorStop(1, "#e8f8ff");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // parallax moon
-    const moonX = W - 90 - camera.x * 0.05;
-    ctx.fillStyle = "rgba(255,215,106,0.5)";
+    // sun
+    const sunX = W - 100 - camera.x * 0.04;
+    const sunWrapped = ((sunX % (W + 200)) + W + 200) % (W + 200) - 100;
+    ctx.fillStyle = "#fff3a0";
     ctx.beginPath();
-    ctx.arc(((moonX % (W + 200)) + W + 200) % (W + 200) - 100, 70, 30, 0, Math.PI * 2);
+    ctx.arc(sunWrapped, 80, 42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffe45c";
+    ctx.beginPath();
+    ctx.arc(sunWrapped, 80, 32, 0, Math.PI * 2);
     ctx.fill();
 
-    // parallax distant hills
-    ctx.fillStyle = "rgba(20,14,32,0.6)";
-    const hillOffset = -((camera.x * 0.3) % 240);
-    for (let x = hillOffset - 240; x < W + 240; x += 240) {
+    // clouds (parallax)
+    function drawCloud(cx, cy, scale) {
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.ellipse(x, GROUND_Y + 40, 160, 90, 0, Math.PI, 0);
+      ctx.ellipse(cx, cy, 26 * scale, 16 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 22 * scale, cy - 8 * scale, 20 * scale, 14 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 42 * scale, cy, 24 * scale, 15 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 20 * scale, cy + 6 * scale, 30 * scale, 13 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const cloudSpacing = 340;
+    const cloudOffset = -((camera.x * 0.15) % cloudSpacing);
+    let ci = 0;
+    for (let x = cloudOffset - cloudSpacing; x < W + cloudSpacing; x += cloudSpacing) {
+      const bandY = ci % 2 === 0 ? 70 : 130;
+      drawCloud(x, bandY, ci % 2 === 0 ? 1 : 0.75);
+      ci++;
+    }
+
+    // distant hills
+    ctx.fillStyle = "#8fd45a";
+    const hillOffset = -((camera.x * 0.3) % 260);
+    for (let x = hillOffset - 260; x < W + 260; x += 260) {
+      ctx.beginPath();
+      ctx.ellipse(x, GROUND_Y + 50, 170, 100, 0, Math.PI, 0);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#79c94a";
+    const hillOffset2 = -((camera.x * 0.45) % 200);
+    for (let x = hillOffset2 - 200; x < W + 200; x += 200) {
+      ctx.beginPath();
+      ctx.ellipse(x + 100, GROUND_Y + 55, 120, 70, 0, Math.PI, 0);
       ctx.fill();
     }
   }
 
-  function drawTerrain() {
-    ctx.strokeStyle = "rgba(255,215,106,0.35)";
-    ctx.lineWidth = 2;
+  const TILE = 32;
+  const GRASS_H = 14;
+  const GRASS_COLOR = "#4ec13f";
+  const GRASS_SHADE = "#3aa62d";
+  const DIRT_COLOR = "#c87f3b";
+  const DIRT_LINE = "#a5652a";
+  const DIRT_HILITE = "#e0a262";
+  const BRICK_COLOR = "#c9772f";
+  const BRICK_LINE = "#8a4f1e";
+  const BRICK_HILITE = "#e8a55c";
 
-    ctx.fillStyle = "#150f24";
+  function drawGroundTile(screenX, topY, height) {
+    ctx.fillStyle = GRASS_COLOR;
+    ctx.fillRect(screenX, topY, TILE, GRASS_H);
+    ctx.fillStyle = GRASS_SHADE;
+    ctx.fillRect(screenX, topY + GRASS_H - 4, TILE, 4);
+
+    const dirtTop = topY + GRASS_H;
+    const dirtH = height - GRASS_H;
+    ctx.fillStyle = DIRT_COLOR;
+    ctx.fillRect(screenX, dirtTop, TILE, dirtH);
+    ctx.strokeStyle = DIRT_LINE;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(screenX + 1, dirtTop + 1, TILE - 2, Math.min(dirtH - 2, TILE - 2));
+    ctx.fillStyle = DIRT_HILITE;
+    ctx.fillRect(screenX + 5, dirtTop + 5, 6, 6);
+  }
+
+  function drawBrickTile(screenX, topY) {
+    ctx.fillStyle = BRICK_COLOR;
+    ctx.fillRect(screenX, topY, TILE, TILE * 0.5);
+    ctx.strokeStyle = BRICK_LINE;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(screenX + 1, topY + 1, TILE - 2, TILE * 0.5 - 2);
+    ctx.fillStyle = BRICK_HILITE;
+    ctx.fillRect(screenX + 4, topY + 3, TILE - 8, 3);
+  }
+
+  function drawTerrain() {
+    ctx.fillStyle = "#14101f";
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+
     groundSegments.forEach((s) => {
       const x1 = s.x1 - camera.x;
       const x2 = s.x2 - camera.x;
-      if (x2 < -20 || x1 > W + 20) return;
-      ctx.fillRect(x1, GROUND_Y, x2 - x1, H - GROUND_Y);
+      if (x2 < -40 || x1 > W + 40) return;
+
+      ctx.save();
       ctx.beginPath();
-      ctx.moveTo(x1, GROUND_Y);
-      ctx.lineTo(x2, GROUND_Y);
-      ctx.stroke();
+      ctx.rect(x1, GROUND_Y, x2 - x1, H - GROUND_Y);
+      ctx.clip();
+
+      const firstTileWorldX = Math.floor(s.x1 / TILE) * TILE;
+      for (let wx = firstTileWorldX; wx < s.x2 + TILE; wx += TILE) {
+        drawGroundTile(wx - camera.x, GROUND_Y, H - GROUND_Y);
+      }
+      ctx.restore();
     });
 
-    ctx.fillStyle = "#2a1f45";
     floatPlatforms.forEach((p) => {
       const x1 = p.x1 - camera.x;
       const x2 = p.x2 - camera.x;
-      if (x2 < -20 || x1 > W + 20) return;
-      ctx.fillRect(x1, p.y, x2 - x1, 14);
-      ctx.strokeRect(x1, p.y, x2 - x1, 14);
+      if (x2 < -40 || x1 > W + 40) return;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x1, p.y, x2 - x1, TILE * 0.5);
+      ctx.clip();
+      const firstTileWorldX = Math.floor(p.x1 / TILE) * TILE;
+      for (let wx = firstTileWorldX; wx < p.x2 + TILE; wx += TILE) {
+        drawBrickTile(wx - camera.x, p.y);
+      }
+      ctx.restore();
     });
   }
 

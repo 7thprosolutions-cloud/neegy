@@ -5,12 +5,12 @@
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
   background: linear-gradient(180deg, #5c94fc 0%, #9fd0ff 45%, #eaf8ff 100%);
   background-attachment: fixed;
   color: #2b2010;
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .stage {
@@ -150,4 +150,307 @@ canvas {
   font-size: 20px;
   color: #c62828;
   margin: 4px 0 2px;
+}
+
+/* ---------- meme content page (below the game) ---------- */
+
+.meme-page {
+  width: 960px;
+  max-width: 96vw;
+  margin: 0 auto;
+  padding: 24px 0 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.scroll-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #ffffffdd;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: bold;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.scroll-arrow {
+  font-size: 20px;
+  animation: bounce 1.6s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+
+.meme-hero {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 3px solid #2b2010;
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 10px 24px rgba(20, 20, 40, 0.25);
+}
+
+.hero-art {
+  width: 150px;
+  height: auto;
+  flex-shrink: 0;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.25));
+}
+
+.hero-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.meme-title {
+  margin: 0;
+  font-size: 48px;
+  letter-spacing: 4px;
+  color: #d4a017;
+  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.8), 0 0 20px rgba(212, 160, 23, 0.35);
+}
+
+.meme-tagline {
+  margin: 2px 0 16px;
+  font-size: 16px;
+  color: #4a3a20;
+  font-weight: bold;
+}
+
+.contract-box {
+  background: #fff8e6;
+  border: 2px solid #e8c877;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.contract-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #a5822a;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.contract-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.contract-row code {
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  color: #2b2010;
+  word-break: break-all;
+  flex: 1;
+  min-width: 200px;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #b5762a;
+  transition: transform 0.05s ease;
+}
+
+.copy-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #b5762a;
+}
+
+.copy-btn.copied {
+  background: linear-gradient(180deg, #a8f0a0, #5fd158);
+  box-shadow: 0 3px 0 #3a9e35;
+}
+
+.cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.buy-btn {
+  display: inline-block;
+  padding: 14px 30px;
+  font-size: 16px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  border-radius: 30px;
+  text-decoration: none;
+  box-shadow: 0 4px 0 #b5762a, 0 6px 16px rgba(0, 0, 0, 0.25);
+  transition: transform 0.05s ease;
+}
+
+.buy-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #b5762a, 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.support-line {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: #7a6020;
+}
+
+.meme-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 3px solid #2b2010;
+  border-radius: 20px;
+  padding: 26px 28px;
+  box-shadow: 0 10px 24px rgba(20, 20, 40, 0.25);
+}
+
+.meme-card h3 {
+  margin: 0 0 10px;
+  font-size: 24px;
+  color: #e8590c;
+  letter-spacing: 0.5px;
+}
+
+.meme-card p {
+  margin: 0 0 12px;
+  line-height: 1.6;
+  color: #2b2010;
+  font-size: 15px;
+}
+
+.stat-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.stat-pill {
+  background: #fff8e6;
+  border: 2px solid #e8c877;
+  border-radius: 14px;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+}
+
+.stat-pill b {
+  color: #d4a017;
+  font-size: 17px;
+}
+
+.stat-pill span {
+  font-size: 11px;
+  color: #7a6020;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kym-link {
+  display: inline-block;
+  margin-top: 4px;
+  color: #e8590c;
+  font-weight: bold;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.kym-link:hover {
+  text-decoration: underline;
+}
+
+.creator-card {
+  border-color: #d4a017;
+}
+
+.creator-proof {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #fff8e6;
+  border: 2px dashed #e8c877;
+  border-radius: 14px;
+  padding: 16px;
+  margin: 14px 0;
+}
+
+.creator-shot {
+  max-width: 220px;
+  height: auto;
+  border-radius: 10px;
+}
+
+.proof-caption {
+  margin: 0;
+  font-size: 12px;
+  color: #a5822a;
+  font-style: italic;
+}
+
+.social-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: #4a3a20;
+}
+
+.social-row a {
+  color: #e8590c;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.social-row a:hover {
+  text-decoration: underline;
+}
+
+.meme-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 20px;
+  text-align: center;
+}
+
+.disclaimer {
+  margin: 0;
+  font-size: 12px;
+  color: #4a3a20aa;
+  max-width: 420px;
+}
+
+@media (max-width: 640px) {
+  .meme-hero {
+    flex-direction: column;
+    text-align: center;
+  }
+  .cta-row {
+    justify-content: center;
+  }
+  .social-row {
+    justify-content: center;
+  }
 }

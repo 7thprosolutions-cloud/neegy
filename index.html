@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Neegy — Gold Gunner</title>
-<link rel="stylesheet" href="style.css?v=4" />
+<link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
   <main class="stage">
@@ -31,6 +31,135 @@
     </div>
   </main>
 
+  <section class="meme-page">
+    <div class="scroll-hint">
+      <span>keep scrolling</span>
+      <div class="scroll-arrow">&darr;</div>
+    </div>
+
+    <div class="meme-hero">
+      <img class="hero-art" src="assets/sprites/player/walk1.png" alt="$NEEGY character" />
+      <div class="hero-copy">
+        <h2 class="meme-title">$NEEGY</h2>
+        <p class="meme-tagline">The gold-plated Fortnite legend. Now on-chain.</p>
+
+        <div class="contract-box">
+          <span class="contract-label">CONTRACT ADDRESS</span>
+          <div class="contract-row">
+            <code id="contractAddress">F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump</code>
+            <button id="copyContractBtn" class="copy-btn" type="button">Copy</button>
+          </div>
+        </div>
+
+        <div class="cta-row">
+          <a
+            class="buy-btn"
+            href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Buy $NEEGY on pump.fun</a>
+        </div>
+        <p class="support-line">Say it with your chest. Support the meme, support the OG. &#128293;</p>
+      </div>
+    </div>
+
+    <div class="meme-card">
+      <h3>How Neegy Was Born</h3>
+      <p>
+        It started with one furious Fortnite voice-chat rant caught on camera. On
+        <b>July 9, 2026</b>, TikTok creator <b>@1104yyh</b> posted the clip over gameplay footage with a
+        gold caricature reacting to every word &mdash; and it exploded to <b>2.1M+ views</b> and
+        <b>162K+ likes</b> in three weeks.
+      </p>
+      <p>
+        By <b>July 14</b>, a front-facing remix of the gold character pushed the trend even further,
+        pulling in <b>500K+</b> more likes on its own. From there it spread to Instagram and X, spinning
+        off diamond, galaxy, and brick versions of the character along the way.
+      </p>
+      <div class="stat-row">
+        <div class="stat-pill"><b>2.1M+</b><span>views (week 1)</span></div>
+        <div class="stat-pill"><b>162K+</b><span>likes (week 1)</span></div>
+        <div class="stat-pill"><b>Jul 9, 2026</b><span>origin date</span></div>
+      </div>
+      <a class="kym-link" href="https://knowyourmeme.com/memes/neegy" target="_blank" rel="noopener noreferrer">
+        Read the full history on KnowYourMeme &rarr;
+      </a>
+    </div>
+
+    <div class="meme-card creator-card">
+      <h3>Built With the Real Creator</h3>
+      <p>
+        Most meme coins have nothing to do with the person who actually made the meme. $NEEGY is
+        different: <b>@1104yyh</b>, the original creator of the viral clip, is directly onboarded and
+        benefits from this project &mdash; including this very game. No riding on someone else's
+        creation without them &mdash; unlike the earlier, unaffiliated coins that came before this one.
+      </p>
+      <div class="creator-proof">
+        <img
+          class="creator-shot"
+          src="assets/sprites/player/fire.png"
+          alt="Proof screenshot placeholder — swap in the OG creator's TikTok profile"
+        />
+        <p class="proof-caption">OG creator proof coming soon</p>
+      </div>
+      <div class="social-row">
+        <span>Follow the OG:</span>
+        <a href="https://www.tiktok.com/@1104yyh" target="_blank" rel="noopener noreferrer">TikTok @1104yyh</a>
+        <a href="https://x.com/TheFlash_Point" target="_blank" rel="noopener noreferrer">X @TheFlash_Point</a>
+      </div>
+    </div>
+
+    <div class="meme-footer">
+      <a
+        class="buy-btn"
+        href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump"
+        target="_blank"
+        rel="noopener noreferrer"
+      >Buy $NEEGY on pump.fun</a>
+      <p class="disclaimer">$NEEGY is a community meme coin. Not financial advice — always do your own research.</p>
+    </div>
+  </section>
+
   <script src="game.js?v=10"></script>
+  <script>
+    const copyBtn = document.getElementById("copyContractBtn");
+    const addressEl = document.getElementById("contractAddress");
+
+    function flashCopyState(label) {
+      const original = copyBtn.textContent;
+      copyBtn.textContent = label;
+      copyBtn.classList.add("copied");
+      setTimeout(() => {
+        copyBtn.textContent = original;
+        copyBtn.classList.remove("copied");
+      }, 1500);
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (e) {
+        ok = false;
+      }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    copyBtn.addEventListener("click", () => {
+      const text = addressEl.textContent.trim();
+      navigator.clipboard
+        .writeText(text)
+        .then(() => flashCopyState("Copied!"))
+        .catch(() => flashCopyState(fallbackCopy(text) ? "Copied!" : "Copy failed"));
+    });
+  </script>
 </body>
 </html>

@@ -41,6 +41,10 @@ html, body {
   letter-spacing: 4px;
 }
 
+.game-frame {
+  position: relative;
+}
+
 canvas {
   display: block;
   width: 100%;
@@ -55,66 +59,57 @@ canvas {
 
 .touch-controls {
   display: none;
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  pointer-events: none;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding: 0 2px;
 }
 
 @media (pointer: coarse) {
   body.playing .touch-controls {
-    display: block;
+    display: flex;
   }
 }
 
 .tc-left,
 .tc-right {
-  position: absolute;
-  bottom: 14px;
   display: flex;
-  gap: 10px;
-  pointer-events: auto;
-}
-
-.tc-left {
-  left: 14px;
-}
-
-.tc-right {
-  right: 14px;
+  gap: 12px;
 }
 
 .tc-btn {
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  border: 2px solid rgba(43, 32, 16, 0.5);
-  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid #2b2010;
+  background: rgba(255, 255, 255, 0.9);
   color: #2b2010;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  box-shadow: 0 3px 0 rgba(43, 32, 16, 0.35);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   touch-action: none;
 }
 
 .tc-btn:active {
-  background: rgba(255, 255, 255, 0.85);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(43, 32, 16, 0.35);
 }
 
 .tc-fire {
-  background: rgba(255, 179, 71, 0.85);
-  font-size: 11px;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  font-size: 12px;
   letter-spacing: 0.5px;
 }
 
 .tc-jump {
-  background: rgba(255, 255, 255, 0.75);
-  font-size: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
   letter-spacing: 0.5px;
 }
 

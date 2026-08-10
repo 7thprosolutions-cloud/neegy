@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/web/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="assets/web/favicon-512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/web/favicon-180.png" />
-<link rel="stylesheet" href="style.css?v=9" />
+<link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
   <main class="stage">
@@ -18,7 +18,23 @@
       <div class="hud-item lives" id="lives">♥ ♥ ♥</div>
     </div>
 
-    <canvas id="game" width="960" height="480"></canvas>
+    <div class="game-frame">
+      <canvas id="game" width="960" height="480"></canvas>
+
+      <div id="overlay" class="overlay">
+        <h1>$NEEGY</h1>
+        <p class="contract">F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump</p>
+        <p class="tagline">Gold Gunner Arcade</p>
+        <p class="hint">Run right, jump the gaps, hop onto ledges, and shoot down anything in your way.</p>
+        <div class="controls">
+          <div><b>&larr; &rarr;</b> or <b>A / D</b> — move</div>
+          <div><b>&uarr;</b> or <b>W</b> — jump</div>
+          <div><b>SPACE</b> or <b>click</b> — shoot</div>
+        </div>
+        <button id="startBtn">PLAY</button>
+        <p class="footnote">No sign up. Just your score.</p>
+      </div>
+    </div>
 
     <div class="touch-controls" id="touchControls">
       <div class="tc-left">
@@ -29,20 +45,6 @@
         <button type="button" id="tcFire" class="tc-btn tc-fire" aria-label="Shoot">FIRE</button>
         <button type="button" id="tcJump" class="tc-btn tc-jump" aria-label="Jump">JUMP</button>
       </div>
-    </div>
-
-    <div id="overlay" class="overlay">
-      <h1>$NEEGY</h1>
-      <p class="contract">F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump</p>
-      <p class="tagline">Gold Gunner Arcade</p>
-      <p class="hint">Run right, jump the gaps, hop onto ledges, and shoot down anything in your way.</p>
-      <div class="controls">
-        <div><b>&larr; &rarr;</b> or <b>A / D</b> — move</div>
-        <div><b>&uarr;</b> or <b>W</b> — jump</div>
-        <div><b>SPACE</b> or <b>click</b> — shoot</div>
-      </div>
-      <button id="startBtn">PLAY</button>
-      <p class="footnote">No sign up. Just your score.</p>
     </div>
   </main>
 

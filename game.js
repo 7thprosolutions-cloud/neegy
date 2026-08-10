@@ -475,29 +475,38 @@
 
   const TILE = 32;
   const GRASS_H = 14;
-  const GRASS_COLOR = "#4ec13f";
-  const GRASS_SHADE = "#3aa62d";
-  const DIRT_COLOR = "#c87f3b";
-  const DIRT_LINE = "#a5652a";
-  const DIRT_HILITE = "#e0a262";
+  const GROUND_PALETTE = {
+    grass: "#4ec13f",
+    grassShade: "#3aa62d",
+    dirt: "#c87f3b",
+    dirtLine: "#a5652a",
+    dirtHilite: "#e0a262",
+  };
+  const PIT_PALETTE = {
+    grass: "#1c3a17",
+    grassShade: "#132c10",
+    dirt: "#3a2513",
+    dirtLine: "#291a0c",
+    dirtHilite: "#4a3018",
+  };
   const BRICK_COLOR = "#c9772f";
   const BRICK_LINE = "#8a4f1e";
   const BRICK_HILITE = "#e8a55c";
 
-  function drawGroundTile(screenX, topY, height) {
-    ctx.fillStyle = GRASS_COLOR;
+  function drawGroundTile(screenX, topY, height, palette) {
+    ctx.fillStyle = palette.grass;
     ctx.fillRect(screenX, topY, TILE, GRASS_H);
-    ctx.fillStyle = GRASS_SHADE;
+    ctx.fillStyle = palette.grassShade;
     ctx.fillRect(screenX, topY + GRASS_H - 4, TILE, 4);
 
     const dirtTop = topY + GRASS_H;
     const dirtH = height - GRASS_H;
-    ctx.fillStyle = DIRT_COLOR;
+    ctx.fillStyle = palette.dirt;
     ctx.fillRect(screenX, dirtTop, TILE, dirtH);
-    ctx.strokeStyle = DIRT_LINE;
+    ctx.strokeStyle = palette.dirtLine;
     ctx.lineWidth = 2;
     ctx.strokeRect(screenX + 1, dirtTop + 1, TILE - 2, Math.min(dirtH - 2, TILE - 2));
-    ctx.fillStyle = DIRT_HILITE;
+    ctx.fillStyle = palette.dirtHilite;
     ctx.fillRect(screenX + 5, dirtTop + 5, 6, 6);
   }
 
@@ -512,8 +521,12 @@
   }
 
   function drawTerrain() {
-    ctx.fillStyle = "#14101f";
-    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    // pit base: same ground motif, darkened, so gaps read as a hole in the
+    // ground rather than a flat void
+    const pitFirstTileWorldX = Math.floor((camera.x - 40) / TILE) * TILE;
+    for (let wx = pitFirstTileWorldX; wx < camera.x + W + 40; wx += TILE) {
+      drawGroundTile(wx - camera.x, GROUND_Y, H - GROUND_Y, PIT_PALETTE);
+    }
 
     groundSegments.forEach((s) => {
       const x1 = s.x1 - camera.x;
@@ -527,7 +540,7 @@
 
       const firstTileWorldX = Math.floor(s.x1 / TILE) * TILE;
       for (let wx = firstTileWorldX; wx < s.x2 + TILE; wx += TILE) {
-        drawGroundTile(wx - camera.x, GROUND_Y, H - GROUND_Y);
+        drawGroundTile(wx - camera.x, GROUND_Y, H - GROUND_Y, GROUND_PALETTE);
       }
       ctx.restore();
     });

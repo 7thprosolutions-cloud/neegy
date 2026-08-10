@@ -261,7 +261,7 @@
     const onGround = groundSegments.some((s) => spawnX > s.x1 + 10 && spawnX < s.x2 - 10);
     if (!onGround) return;
 
-    const jumperChance = Math.min(0.55, 0.1 + killCount * 0.015);
+    const jumperChance = Math.min(0.75, 0.3 + killCount * 0.02);
     const isJumper = Math.random() < jumperChance;
 
     enemies.push({
@@ -276,7 +276,7 @@
       legPhase: Math.random() * Math.PI * 2,
       type: isJumper ? "jumper" : "walker",
       onGround: true,
-      jumpTimer: 40 + Math.random() * 60,
+      jumpTimer: 25 + Math.random() * 45,
     });
   }
 
@@ -316,6 +316,7 @@
       w: 10,
       h: 4,
     });
+    playShootSfx();
   }
 
   function respawnAfterFall() {
@@ -355,6 +356,7 @@
     if (jump && player.onGround) {
       player.vy = JUMP_VELOCITY;
       player.onGround = false;
+      playJumpSfx();
     }
     if (shootRequested) {
       shoot();
@@ -431,7 +433,7 @@
         if (en.onGround) {
           en.jumpTimer--;
           if (en.jumpTimer <= 0) {
-            en.vy = ENEMY_JUMP_VELOCITY;
+            en.vy = ENEMY_JUMP_VELOCITY * (0.8 + Math.random() * 0.4);
             en.onGround = false;
           }
         } else {
@@ -441,7 +443,7 @@
             en.y = GROUND_Y;
             en.vy = 0;
             en.onGround = true;
-            en.jumpTimer = 50 + Math.random() * 70;
+            en.jumpTimer = 30 + Math.random() * 50;
           }
         }
       }
@@ -723,49 +725,12 @@
     document.getElementById("startBtn").addEventListener("click", startGame);
   }
 
-  // ---------- background music (synthesized, no audio files needed) ----------
-  const MUSIC_BPM = 128;
-  const MUSIC_STEP_SEC = 60 / MUSIC_BPM / 2;
-  const BASS_PATTERN = [-24, -24, -17, -24, -19, -24, -17, -21];
-  const LEAD_PATTERN = [12, null, 15, 12, null, 19, 17, null, 15, 12, null, 10, 12, null, null, null];
-
+  // ---------- sound effects (synthesized, no audio files needed) ----------
   let audioCtx = null;
-  let musicGain = null;
-  let musicMuted = false;
-  let musicStep = 0;
-  let musicTimerId = null;
+  let sfxGain = null;
+  let sfxMuted = false;
 
-  function noteFreq(semitones) {
-    return 220 * Math.pow(2, semitones / 12);
-  }
-
-  function playSynthNote(freq, duration, type, level) {
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0, t0);
-    gain.gain.linearRampToValueAtTime(level, t0 + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-    osc.connect(gain);
-    gain.connect(musicGain);
-    osc.start(t0);
-    osc.stop(t0 + duration + 0.03);
-  }
-
-  function musicTick() {
-    const bassIdx = musicStep % BASS_PATTERN.length;
-    playSynthNote(noteFreq(BASS_PATTERN[bassIdx]), MUSIC_STEP_SEC * 1.8, "triangle", 0.16);
-    const leadIdx = musicStep % LEAD_PATTERN.length;
-    const leadNote = LEAD_PATTERN[leadIdx];
-    if (leadNote !== null) {
-      playSynthNote(noteFreq(leadNote), MUSIC_STEP_SEC * 0.85, "square", 0.05);
-    }
-    musicStep++;
-  }
-
-  function startMusic() {
+  function initAudio() {
     if (audioCtx) {
       if (audioCtx.state === "suspended") audioCtx.resume();
       return;
@@ -773,26 +738,48 @@
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     audioCtx = new AudioCtx();
-    musicGain = audioCtx.createGain();
-    musicGain.gain.value = musicMuted ? 0 : 1;
-    musicGain.connect(audioCtx.destination);
-    musicStep = 0;
-    musicTick();
-    musicTimerId = setInterval(musicTick, MUSIC_STEP_SEC * 1000);
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = sfxMuted ? 0 : 1;
+    sfxGain.connect(audioCtx.destination);
+  }
+
+  function playSweep(startFreq, endFreq, duration, type, level) {
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(startFreq, t0);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 1), t0 + duration);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(level, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(sfxGain);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.03);
+  }
+
+  function playShootSfx() {
+    playSweep(950, 220, 0.1, "square", 0.14);
+  }
+
+  function playJumpSfx() {
+    playSweep(220, 660, 0.14, "triangle", 0.16);
   }
 
   function updateMuteBtn() {
     const btn = document.getElementById("muteBtn");
     if (!btn) return;
-    btn.innerHTML = musicMuted ? "&#128263;" : "&#128266;";
-    btn.classList.toggle("muted", musicMuted);
+    btn.innerHTML = sfxMuted ? "&#128263;" : "&#128266;";
+    btn.classList.toggle("muted", sfxMuted);
   }
 
   const muteBtn = document.getElementById("muteBtn");
   if (muteBtn) {
     muteBtn.addEventListener("click", () => {
-      musicMuted = !musicMuted;
-      if (musicGain) musicGain.gain.value = musicMuted ? 0 : 1;
+      sfxMuted = !sfxMuted;
+      if (sfxGain) sfxGain.gain.value = sfxMuted ? 0 : 1;
       updateMuteBtn();
     });
   }
@@ -803,7 +790,7 @@
     state = "playing";
     overlay.classList.add("hidden");
     document.body.classList.add("playing");
-    startMusic();
+    initAudio();
   }
 
   startBtn.addEventListener("click", startGame);

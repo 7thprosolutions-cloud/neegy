@@ -461,6 +461,79 @@ canvas {
   text-decoration: underline;
 }
 
+.roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.roadmap-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #fff8e6;
+  border: 2px solid #e8c877;
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+
+.roadmap-badge {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: bold;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  box-shadow: 0 3px 0 #b5762a;
+}
+
+.roadmap-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.roadmap-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 17px;
+  font-weight: bold;
+  color: #2b2010;
+  margin-bottom: 4px;
+}
+
+.roadmap-status {
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: bold;
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+.roadmap-status.live {
+  color: #1c6e1f;
+  background: #cdf0c8;
+}
+
+.roadmap-status.soon {
+  color: #a5822a;
+  background: #fce9bb;
+}
+
+.roadmap-body p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #4a3a20;
+}
+
 @media (max-width: 640px) {
   .meme-hero {
     flex-direction: column;

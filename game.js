@@ -130,6 +130,7 @@
   let bullets = [];
   let enemies = [];
   let particles = [];
+  let captions = [];
   let groundSegments = [];
   let floatPlatforms = [];
   let genX = 0;
@@ -152,6 +153,7 @@
     bullets = [];
     enemies = [];
     particles = [];
+    captions = [];
     groundSegments = [{ x1: -200, x2: 700 }];
     floatPlatforms = [];
     genX = 700;
@@ -206,6 +208,19 @@
       speed: enemySpeedBase + Math.random() * 0.6,
       alive: true,
       legPhase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  const KILL_QUIPS = ["Shut up Neegy!", "Shurup!", "Neegy!"];
+
+  function spawnCaption(worldX, y) {
+    captions.push({
+      text: KILL_QUIPS[Math.floor(Math.random() * KILL_QUIPS.length)],
+      worldX,
+      y,
+      vy: -0.6,
+      life: 60,
+      maxLife: 60,
     });
   }
 
@@ -349,6 +364,7 @@
           b.x = -9999;
           score += 10;
           spawnParticles(en.x - camera.x, en.y - en.h / 2, "#ff5f6d", 14);
+          spawnCaption(player.worldX, player.y - PLAYER_RENDER_H - 12);
         }
       }
     }
@@ -376,6 +392,13 @@
       p.life--;
     });
     particles = particles.filter((p) => p.life > 0);
+
+    // captions
+    captions.forEach((c) => {
+      c.y += c.vy;
+      c.life--;
+    });
+    captions = captions.filter((c) => c.life > 0);
 
     const distanceScore = Math.floor((player.worldX - 120) / 8);
     score = Math.max(score, distanceScore);
@@ -545,6 +568,20 @@
       ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
       ctx.globalAlpha = 1;
     });
+
+    captions.forEach((c) => {
+      const x = c.worldX - camera.x;
+      ctx.globalAlpha = Math.min(1, c.life / 20);
+      ctx.font = "bold 20px 'Trebuchet MS', 'Segoe UI', sans-serif";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#2b2010";
+      ctx.strokeText(c.text, x, c.y);
+      ctx.fillStyle = "#ffe45c";
+      ctx.fillText(c.text, x, c.y);
+      ctx.globalAlpha = 1;
+    });
+    ctx.textAlign = "left";
   }
 
   // ---------- loop ----------

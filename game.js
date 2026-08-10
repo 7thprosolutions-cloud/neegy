@@ -72,7 +72,7 @@
   // ---------- sprite assets ----------
   const PLAYER_RENDER_H = 84;
   const ENEMY_RENDER_H = 70;
-  const sprites = { playerWalk: [], playerJump: [], playerFire: null, enemyWalk: [] };
+  const sprites = { playerWalk: [], playerJump: [], playerFire: null, enemyWalk: [], enemyJumpRise: null, enemyJumpLand: null };
   let assetsReady = false;
 
   function loadImage(src) {
@@ -89,11 +89,15 @@
     ...Array.from({ length: 6 }, (_, i) => loadImage(`assets/sprites/player/jump${i + 1}.png`)),
     loadImage("assets/sprites/player/fire.png"),
     ...Array.from({ length: 8 }, (_, i) => loadImage(`assets/sprites/enemy/walk${i + 1}.png`)),
+    loadImage("assets/sprites/enemy/jump3.png"),
+    loadImage("assets/sprites/enemy/jump6.png"),
   ]).then((imgs) => {
     sprites.playerWalk = imgs.slice(0, 8);
     sprites.playerJump = imgs.slice(8, 14);
     sprites.playerFire = imgs[14];
     sprites.enemyWalk = imgs.slice(15, 23);
+    sprites.enemyJumpRise = imgs[23];
+    sprites.enemyJumpLand = imgs[24];
     assetsReady = true;
     const btn = document.getElementById("startBtn");
     if (btn) btn.disabled = false;
@@ -117,6 +121,9 @@
   }
 
   function getEnemyFrame(en) {
+    if (en.type === "jumper" && !en.onGround) {
+      return en.vy < 0 ? sprites.enemyJumpRise : sprites.enemyJumpLand;
+    }
     const idx = Math.floor(en.legPhase / WALK_FRAME_STEP) % 8;
     return sprites.enemyWalk[idx];
   }
@@ -146,11 +153,13 @@
   const VIEW_ANCHOR = W * 0.32; // screen x where the player "sits" once the level is scrolling
   const FALL_LIMIT = 260; // world px below baseline before it counts as a pit death
   const FLOAT_PLATFORM_OFFSET = 90;
+  const ENEMY_JUMP_VELOCITY = -11;
 
   let state = "idle"; // idle | playing | gameover
   let frame = 0;
   let score = 0;
   let lives = 3;
+  let killCount = 0;
   let camera = { x: 0 };
 
   const player = {
@@ -180,6 +189,7 @@
   function resetGame() {
     score = 0;
     lives = 3;
+    killCount = 0;
     frame = 0;
     camera.x = 0;
     player.worldX = 120;
@@ -250,15 +260,23 @@
 
     const onGround = groundSegments.some((s) => spawnX > s.x1 + 10 && spawnX < s.x2 - 10);
     if (!onGround) return;
+
+    const jumperChance = Math.min(0.55, 0.1 + killCount * 0.015);
+    const isJumper = Math.random() < jumperChance;
+
     enemies.push({
       x: spawnX,
       y: GROUND_Y,
+      vy: 0,
       w: 30,
       h: 54,
       dir,
       speed: enemySpeedBase + Math.random() * 0.6,
       alive: true,
       legPhase: Math.random() * Math.PI * 2,
+      type: isJumper ? "jumper" : "walker",
+      onGround: true,
+      jumpTimer: 40 + Math.random() * 60,
     });
   }
 
@@ -392,18 +410,41 @@
     bullets.forEach((b) => (b.x += b.vx));
     bullets = bullets.filter((b) => b.x > camera.x - 40 && b.x < camera.x + W + 40);
 
-    // enemy spawn, ramping difficulty with progress
+    // enemy spawn, ramping difficulty with progress AND with kills - the more
+    // you clear, the thicker and faster the next wave comes in
     enemySpawnTimer++;
-    const spawnInterval = Math.max(45, 110 - Math.floor(player.worldX / 400));
+    const spawnInterval = Math.max(
+      22,
+      110 - Math.floor(player.worldX / 400) - killCount * 2.2
+    );
     if (enemySpawnTimer >= spawnInterval) {
       enemySpawnTimer = 0;
       spawnEnemy();
-      enemySpeedBase = Math.min(4.2, enemySpeedBase + 0.02);
+      enemySpeedBase = Math.min(5.5, enemySpeedBase + 0.02 + killCount * 0.002);
     }
 
     enemies.forEach((en) => {
       en.x += en.dir * en.speed;
       en.legPhase += 0.25;
+
+      if (en.type === "jumper") {
+        if (en.onGround) {
+          en.jumpTimer--;
+          if (en.jumpTimer <= 0) {
+            en.vy = ENEMY_JUMP_VELOCITY;
+            en.onGround = false;
+          }
+        } else {
+          en.vy += GRAVITY;
+          en.y += en.vy;
+          if (en.y >= GROUND_Y) {
+            en.y = GROUND_Y;
+            en.vy = 0;
+            en.onGround = true;
+            en.jumpTimer = 50 + Math.random() * 70;
+          }
+        }
+      }
     });
 
     // bullet vs enemy
@@ -414,6 +455,7 @@
           en.alive = false;
           b.x = -9999;
           score += 10;
+          killCount++;
           spawnParticles(en.x - camera.x, en.y - en.h / 2, "#ff5f6d", 14);
           spawnCaption(player.worldX, player.y - PLAYER_RENDER_H - 12);
         }
@@ -681,12 +723,87 @@
     document.getElementById("startBtn").addEventListener("click", startGame);
   }
 
+  // ---------- background music (synthesized, no audio files needed) ----------
+  const MUSIC_BPM = 128;
+  const MUSIC_STEP_SEC = 60 / MUSIC_BPM / 2;
+  const BASS_PATTERN = [-24, -24, -17, -24, -19, -24, -17, -21];
+  const LEAD_PATTERN = [12, null, 15, 12, null, 19, 17, null, 15, 12, null, 10, 12, null, null, null];
+
+  let audioCtx = null;
+  let musicGain = null;
+  let musicMuted = false;
+  let musicStep = 0;
+  let musicTimerId = null;
+
+  function noteFreq(semitones) {
+    return 220 * Math.pow(2, semitones / 12);
+  }
+
+  function playSynthNote(freq, duration, type, level) {
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(level, t0 + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.03);
+  }
+
+  function musicTick() {
+    const bassIdx = musicStep % BASS_PATTERN.length;
+    playSynthNote(noteFreq(BASS_PATTERN[bassIdx]), MUSIC_STEP_SEC * 1.8, "triangle", 0.16);
+    const leadIdx = musicStep % LEAD_PATTERN.length;
+    const leadNote = LEAD_PATTERN[leadIdx];
+    if (leadNote !== null) {
+      playSynthNote(noteFreq(leadNote), MUSIC_STEP_SEC * 0.85, "square", 0.05);
+    }
+    musicStep++;
+  }
+
+  function startMusic() {
+    if (audioCtx) {
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      return;
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    audioCtx = new AudioCtx();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = musicMuted ? 0 : 1;
+    musicGain.connect(audioCtx.destination);
+    musicStep = 0;
+    musicTick();
+    musicTimerId = setInterval(musicTick, MUSIC_STEP_SEC * 1000);
+  }
+
+  function updateMuteBtn() {
+    const btn = document.getElementById("muteBtn");
+    if (!btn) return;
+    btn.innerHTML = musicMuted ? "&#128263;" : "&#128266;";
+    btn.classList.toggle("muted", musicMuted);
+  }
+
+  const muteBtn = document.getElementById("muteBtn");
+  if (muteBtn) {
+    muteBtn.addEventListener("click", () => {
+      musicMuted = !musicMuted;
+      if (musicGain) musicGain.gain.value = musicMuted ? 0 : 1;
+      updateMuteBtn();
+    });
+  }
+
   function startGame() {
     if (!assetsReady) return;
     resetGame();
     state = "playing";
     overlay.classList.add("hidden");
     document.body.classList.add("playing");
+    startMusic();
   }
 
   startBtn.addEventListener("click", startGame);

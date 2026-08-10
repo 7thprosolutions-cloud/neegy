@@ -41,6 +41,25 @@ html, body {
   letter-spacing: 4px;
 }
 
+.mute-btn {
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: #e8590c;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mute-btn:active {
+  transform: translateY(1px);
+}
+
+.mute-btn.muted {
+  opacity: 0.4;
+}
+
 .game-frame {
   position: relative;
 }

@@ -38,7 +38,7 @@
   // ---------- sprite assets ----------
   const PLAYER_RENDER_H = 84;
   const ENEMY_RENDER_H = 70;
-  const sprites = { playerWalk: [], playerJump: [], enemyWalk: [] };
+  const sprites = { playerWalk: [], playerJump: [], playerFire: null, enemyWalk: [] };
   let assetsReady = false;
 
   function loadImage(src) {
@@ -53,19 +53,25 @@
   Promise.all([
     ...Array.from({ length: 8 }, (_, i) => loadImage(`assets/sprites/player/walk${i + 1}.png`)),
     ...Array.from({ length: 6 }, (_, i) => loadImage(`assets/sprites/player/jump${i + 1}.png`)),
+    loadImage("assets/sprites/player/fire.png"),
     ...Array.from({ length: 8 }, (_, i) => loadImage(`assets/sprites/enemy/walk${i + 1}.png`)),
   ]).then((imgs) => {
     sprites.playerWalk = imgs.slice(0, 8);
     sprites.playerJump = imgs.slice(8, 14);
-    sprites.enemyWalk = imgs.slice(14, 22);
+    sprites.playerFire = imgs[14];
+    sprites.enemyWalk = imgs.slice(15, 23);
     assetsReady = true;
     const btn = document.getElementById("startBtn");
     if (btn) btn.disabled = false;
   });
 
   const WALK_FRAME_STEP = 0.6; // legPhase units per animation frame
+  const FIRE_POSE_FRAMES = 9; // how many frames after a shot to hold the straight-gun pose
 
   function getPlayerFrame() {
+    if (player.cooldown > SHOOT_COOLDOWN - FIRE_POSE_FRAMES) {
+      return sprites.playerFire;
+    }
     if (!player.onGround) {
       return player.vy < 0 ? sprites.playerJump[2] : sprites.playerJump[4];
     }
@@ -196,7 +202,18 @@
 
   // ---------- entities ----------
   function spawnEnemy() {
-    const spawnX = camera.x + W + 60 + Math.random() * 120;
+    const behindRoom = player.worldX - camera.x - 100;
+    const fromBehind = behindRoom > 80 && Math.random() < 0.35;
+
+    let spawnX, dir;
+    if (fromBehind) {
+      spawnX = camera.x + 30 + Math.random() * (behindRoom - 30);
+      dir = 1;
+    } else {
+      spawnX = camera.x + W + 60 + Math.random() * 120;
+      dir = -1;
+    }
+
     const onGround = groundSegments.some((s) => spawnX > s.x1 + 10 && spawnX < s.x2 - 10);
     if (!onGround) return;
     enemies.push({
@@ -204,7 +221,7 @@
       y: GROUND_Y,
       w: 30,
       h: 54,
-      dir: -1,
+      dir,
       speed: enemySpeedBase + Math.random() * 0.6,
       alive: true,
       legPhase: Math.random() * Math.PI * 2,
@@ -368,12 +385,18 @@
         }
       }
     }
-    enemies = enemies.filter((en) => en.alive && en.x > camera.x - 100);
+    enemies = enemies.filter((en) => en.alive && en.x > camera.x - 100 && en.x < camera.x + W + 300);
     bullets = bullets.filter((b) => b.x > camera.x - 40 && b.x < camera.x + W + 40);
 
-    // enemy vs player
+    // enemy vs player (only if the player is low enough to actually be touching it -
+    // jumping over an enemy's head should clear it, not still count as a hit)
     for (const en of enemies) {
-      if (Math.abs(en.x - player.worldX) < (en.w + player.w) / 2 - 6 && player.hitFlash === 0) {
+      const verticalOverlap = player.y > en.y - en.h + 10;
+      if (
+        verticalOverlap &&
+        Math.abs(en.x - player.worldX) < (en.w + player.w) / 2 - 6 &&
+        player.hitFlash === 0
+      ) {
         en.alive = false;
         lives--;
         player.hitFlash = 45;

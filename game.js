@@ -294,7 +294,7 @@
         ...floatPlatforms,
       ];
       for (const plat of candidates) {
-        if (player.worldX > plat.x1 + 4 && player.worldX < plat.x2 - 4 && prevY <= plat.y + 1 && nextY >= plat.y) {
+        if (player.worldX > plat.x1 && player.worldX < plat.x2 && prevY <= plat.y + 1 && nextY >= plat.y) {
           if (!landed || plat.y < landed.y) landed = plat;
         }
       }

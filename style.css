@@ -75,8 +75,17 @@ canvas {
   margin: 0;
   font-size: 56px;
   letter-spacing: 6px;
-  color: #e8590c;
-  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.8), 0 0 20px rgba(232, 89, 12, 0.25);
+  color: #d4a017;
+  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.8), 0 0 20px rgba(212, 160, 23, 0.35);
+}
+
+.overlay .contract {
+  margin: 0 0 6px;
+  color: #7a6020;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  word-break: break-all;
 }
 
 .overlay .tagline {

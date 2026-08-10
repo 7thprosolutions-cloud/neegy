@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/web/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="assets/web/favicon-512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/web/favicon-180.png" />
-<link rel="stylesheet" href="style.css?v=8" />
+<link rel="stylesheet" href="style.css?v=9" />
 </head>
 <body>
   <main class="stage">
@@ -19,6 +19,17 @@
     </div>
 
     <canvas id="game" width="960" height="480"></canvas>
+
+    <div class="touch-controls" id="touchControls">
+      <div class="tc-left">
+        <button type="button" id="tcLeft" class="tc-btn" aria-label="Move left">&#9664;</button>
+        <button type="button" id="tcRight" class="tc-btn" aria-label="Move right">&#9654;</button>
+      </div>
+      <div class="tc-right">
+        <button type="button" id="tcFire" class="tc-btn tc-fire" aria-label="Shoot">FIRE</button>
+        <button type="button" id="tcJump" class="tc-btn tc-jump" aria-label="Jump">JUMP</button>
+      </div>
+    </div>
 
     <div id="overlay" class="overlay">
       <h1>$NEEGY</h1>
@@ -163,7 +174,7 @@
     </div>
   </section>
 
-  <script src="game.js?v=10"></script>
+  <script src="game.js?v=11"></script>
   <script>
     const copyBtn = document.getElementById("copyContractBtn");
     const addressEl = document.getElementById("contractAddress");

@@ -50,6 +50,72 @@ canvas {
   border-radius: 10px;
   box-shadow: 0 0 0 3px #2b2010, 0 10px 24px rgba(20, 20, 40, 0.35);
   cursor: crosshair;
+  touch-action: none;
+}
+
+.touch-controls {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  body.playing .touch-controls {
+    display: block;
+  }
+}
+
+.tc-left,
+.tc-right {
+  position: absolute;
+  bottom: 14px;
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.tc-left {
+  left: 14px;
+}
+
+.tc-right {
+  right: 14px;
+}
+
+.tc-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 2px solid rgba(43, 32, 16, 0.5);
+  background: rgba(255, 255, 255, 0.55);
+  color: #2b2010;
+  font-size: 18px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: none;
+}
+
+.tc-btn:active {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.tc-fire {
+  background: rgba(255, 179, 71, 0.85);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.tc-jump {
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 11px;
+  letter-spacing: 0.5px;
 }
 
 .overlay {
@@ -59,12 +125,13 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   text-align: center;
   background: rgba(255, 255, 255, 0.82);
   border-radius: 10px;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .overlay.hidden {
@@ -544,5 +611,51 @@ canvas {
   }
   .social-row {
     justify-content: center;
+  }
+
+  .hud {
+    font-size: 12px;
+    padding: 5px 4px 6px;
+  }
+
+  .overlay {
+    top: 32px;
+    padding: 12px;
+    gap: 4px;
+  }
+
+  .overlay h1 {
+    font-size: 30px;
+    letter-spacing: 3px;
+  }
+
+  .overlay .contract {
+    font-size: 10px;
+  }
+
+  .overlay .tagline {
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  .overlay .hint {
+    font-size: 11px;
+    margin: 2px 0 6px;
+  }
+
+  .controls {
+    font-size: 11px;
+    gap: 2px;
+    margin-bottom: 10px;
+  }
+
+  #startBtn {
+    padding: 9px 26px;
+    font-size: 14px;
+  }
+
+  .footnote {
+    margin-top: 8px;
+    font-size: 10px;
   }
 }

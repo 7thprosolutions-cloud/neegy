@@ -35,6 +35,40 @@
 
   let shootRequested = false;
 
+  // on-screen touch controls (mobile)
+  function bindHold(el, keyName) {
+    if (!el) return;
+    const press = (e) => {
+      e.preventDefault();
+      keys.add(keyName);
+    };
+    const release = (e) => {
+      e.preventDefault();
+      keys.delete(keyName);
+    };
+    el.addEventListener("touchstart", press, { passive: false });
+    el.addEventListener("touchend", release, { passive: false });
+    el.addEventListener("touchcancel", release, { passive: false });
+    el.addEventListener("mousedown", press);
+    el.addEventListener("mouseup", release);
+    el.addEventListener("mouseleave", release);
+  }
+  bindHold(document.getElementById("tcLeft"), "arrowleft");
+  bindHold(document.getElementById("tcRight"), "arrowright");
+  bindHold(document.getElementById("tcJump"), "arrowup");
+  const tcFire = document.getElementById("tcFire");
+  if (tcFire) {
+    tcFire.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        shootRequested = true;
+      },
+      { passive: false }
+    );
+    tcFire.addEventListener("mousedown", () => (shootRequested = true));
+  }
+
   // ---------- sprite assets ----------
   const PLAYER_RENDER_H = 84;
   const ENEMY_RENDER_H = 70;
@@ -431,6 +465,7 @@
 
   function endGame() {
     state = "gameover";
+    document.body.classList.remove("playing");
     if (score > best) {
       best = score;
       localStorage.setItem(BEST_KEY, String(best));
@@ -651,6 +686,7 @@
     resetGame();
     state = "playing";
     overlay.classList.add("hidden");
+    document.body.classList.add("playing");
   }
 
   startBtn.addEventListener("click", startGame);

@@ -386,18 +386,21 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   background: #fff8e6;
-  border: 2px dashed #e8c877;
+  border: 2px solid #e8c877;
   border-radius: 14px;
   padding: 16px;
   margin: 14px 0;
 }
 
 .creator-shot {
-  max-width: 220px;
+  max-width: 340px;
+  width: 100%;
   height: auto;
   border-radius: 10px;
+  border: 2px solid #2b2010;
+  box-shadow: 0 6px 14px rgba(20, 20, 40, 0.2);
 }
 
 .proof-caption {
@@ -440,6 +443,22 @@ canvas {
   font-size: 12px;
   color: #4a3a20aa;
   max-width: 420px;
+}
+
+.credit {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #4a3a20aa;
+}
+
+.credit a {
+  color: #e8590c;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.credit a:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 640px) {

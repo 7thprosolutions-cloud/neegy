@@ -413,6 +413,15 @@ canvas {
   color: #1c6e1f;
   background: #cdf0c8;
   border-color: #3a9e35;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0;
+  border-radius: 14px;
+  max-width: 320px;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
 }
 
 .footer-cta-row {

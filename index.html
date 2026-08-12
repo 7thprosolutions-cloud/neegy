@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/web/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="assets/web/favicon-512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/web/favicon-180.png" />
-<link rel="stylesheet" href="style.css?v=12" />
+<link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <main class="stage">
@@ -235,7 +235,7 @@
     document.querySelectorAll(".donate-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const address = btn.dataset.solAddress;
-        copyToClipboard(btn, address, "SOL address copied!", 2200);
+        copyToClipboard(btn, address, `Copied: ${address}`, 3200);
       });
     });
   </script>

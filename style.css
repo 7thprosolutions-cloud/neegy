@@ -388,6 +388,40 @@ canvas {
   box-shadow: 0 1px 0 #b5762a, 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
+.donate-btn {
+  display: inline-block;
+  padding: 13px 28px;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #e8590c;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #e8590c;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b5762a55, 0 6px 16px rgba(0, 0, 0, 0.15);
+  transition: transform 0.05s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.donate-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #b5762a55, 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.donate-btn.copied {
+  color: #1c6e1f;
+  background: #cdf0c8;
+  border-color: #3a9e35;
+}
+
+.footer-cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .support-line {
   margin: 14px 0 0;
   font-size: 13px;

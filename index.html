@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/web/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="assets/web/favicon-512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/web/favicon-180.png" />
-<link rel="stylesheet" href="style.css?v=11" />
+<link rel="stylesheet" href="style.css?v=12" />
 </head>
 <body>
   <main class="stage">
@@ -76,6 +76,11 @@
             target="_blank"
             rel="noopener noreferrer"
           >Buy $NEEGY on pump.fun</a>
+          <button
+            type="button"
+            class="donate-btn"
+            data-sol-address="2HEsBXsyrb2roxcUwPPKNW9eajm7mL6eKNCWU1XbrCnn"
+          >Donate SOL for development</button>
         </div>
         <p class="support-line">Say it with your chest. Support the meme, support the OG. &#128293;</p>
       </div>
@@ -163,12 +168,19 @@
     </div>
 
     <div class="meme-footer">
-      <a
-        class="buy-btn"
-        href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump"
-        target="_blank"
-        rel="noopener noreferrer"
-      >Buy $NEEGY on pump.fun</a>
+      <div class="footer-cta-row">
+        <a
+          class="buy-btn"
+          href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Buy $NEEGY on pump.fun</a>
+        <button
+          type="button"
+          class="donate-btn"
+          data-sol-address="2HEsBXsyrb2roxcUwPPKNW9eajm7mL6eKNCWU1XbrCnn"
+        >Donate SOL for development</button>
+      </div>
       <p class="disclaimer">$NEEGY is a community meme coin. Not financial advice — always do your own research.</p>
       <p class="credit">
         Website and game developed by
@@ -179,17 +191,14 @@
 
   <script src="game.js?v=15"></script>
   <script>
-    const copyBtn = document.getElementById("copyContractBtn");
-    const addressEl = document.getElementById("contractAddress");
-
-    function flashCopyState(label) {
-      const original = copyBtn.textContent;
-      copyBtn.textContent = label;
-      copyBtn.classList.add("copied");
+    function flashButtonState(btn, label, durationMs) {
+      const original = btn.textContent;
+      btn.textContent = label;
+      btn.classList.add("copied");
       setTimeout(() => {
-        copyBtn.textContent = original;
-        copyBtn.classList.remove("copied");
-      }, 1500);
+        btn.textContent = original;
+        btn.classList.remove("copied");
+      }, durationMs || 1500);
     }
 
     function fallbackCopy(text) {
@@ -210,12 +219,24 @@
       return ok;
     }
 
-    copyBtn.addEventListener("click", () => {
-      const text = addressEl.textContent.trim();
+    function copyToClipboard(btn, text, successLabel, durationMs) {
       navigator.clipboard
         .writeText(text)
-        .then(() => flashCopyState("Copied!"))
-        .catch(() => flashCopyState(fallbackCopy(text) ? "Copied!" : "Copy failed"));
+        .then(() => flashButtonState(btn, successLabel, durationMs))
+        .catch(() => flashButtonState(btn, fallbackCopy(text) ? successLabel : "Copy failed", durationMs));
+    }
+
+    const copyBtn = document.getElementById("copyContractBtn");
+    const addressEl = document.getElementById("contractAddress");
+    copyBtn.addEventListener("click", () => {
+      copyToClipboard(copyBtn, addressEl.textContent.trim(), "Copied!");
+    });
+
+    document.querySelectorAll(".donate-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const address = btn.dataset.solAddress;
+        copyToClipboard(btn, address, "SOL address copied!", 2200);
+      });
     });
   </script>
 </body>

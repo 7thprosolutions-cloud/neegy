@@ -136,7 +136,14 @@ async function handleApi(req, res, url) {
   const p = url.pathname;
 
   if (p === "/auth/x/login" && req.method === "GET") {
-    const callback = `${url.protocol}//${url.host}/auth/x/callback`;
+    // X matches callback URLs byte for byte, so this must be derived, not
+    // guessed. url.protocol is unreliable behind a proxy -- the URL is built
+    // from a hardcoded http:// base below, and whether it ends up https
+    // depends on whether the proxy happens to send an absolute request URI.
+    // X-Forwarded-Proto is what the proxy actually tells us, and it is the
+    // same signal the Secure cookie already trusts.
+    const scheme = req.headers["x-forwarded-proto"] || url.protocol.replace(":", "");
+    const callback = `${scheme}://${url.host}/auth/x/callback`;
     let started;
     try {
       started = await beginLogin(env, callback);

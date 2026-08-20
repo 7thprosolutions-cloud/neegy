@@ -3,14 +3,16 @@
   "version": "2.0.0",
   "private": true,
   "description": "$NEEGY — 2D game (V1, repo root) plus the 3D arena with X sign-in and real-time multiplayer (V2, arena3d/ + server/)",
+  "main": "server.js",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "node server/server.mjs",
-    "dev": "node server/server.mjs",
-    "build": "echo \"no build step - static assets are served as-is\"",
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo \"no build step - this app is a server, not a static bundle\"",
     "selftest": "node server/_selftest.mjs",
+    "check-deploy": "node scripts/check-deploy.mjs",
     "compress-character": "node scripts/compress-character-texture.mjs"
   },
   "dependencies": {},

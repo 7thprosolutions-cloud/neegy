@@ -301,12 +301,16 @@ section { padding-block: var(--stack); position: relative; }
   background: radial-gradient(85% 70% at 50% 100%, rgba(232,178,60,0.14), transparent 70%), var(--panel);
   border: 1px solid var(--line);
   border-radius: 4px;
-  display: grid; place-items: end center;
-  padding: 24px 18px 40px;   /* bottom room so the caption clears the boots */
-  min-height: 268px;
+  /* Centre, not end-align, and let the card size to its content. Pinning a
+     min-height and bottom-aligning meant the image's max-height could exceed
+     the remaining content box, and overflow:hidden then quietly sliced the top
+     off the character's head. Grid stretch keeps the three cards equal height
+     without hardcoding one. */
+  display: grid; place-items: center;
+  padding: 24px 18px 44px;   /* bottom room so the caption clears the boots */
   overflow: hidden;
 }
-.shot img { max-height: 214px; width: auto; filter: drop-shadow(0 16px 22px rgba(0,0,0,0.6)); }
+.shot img { max-height: 230px; width: auto; filter: drop-shadow(0 16px 22px rgba(0,0,0,0.6)); }
 .shot { margin: 0; position: relative; }
 .shot figcaption {
   position: absolute; left: 16px; bottom: 12px;
@@ -396,8 +400,8 @@ footer { border-top: 1px solid var(--line); padding-block: 46px; background: #08
   .strip-inner { grid-template-columns: repeat(2, 1fr); }
   .modes { grid-template-columns: 1fr; }
   .shots { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .shot { min-height: 190px; padding: 16px 8px 30px; }
-  .shot img { max-height: 140px; }
+  .shot { padding: 14px 8px 32px; }
+  .shot img { max-height: 150px; }
   .shot figcaption { left: 10px; bottom: 9px; font-size: 0.56rem; letter-spacing: 0.1em; }
   .econ { grid-template-columns: 1fr; }
 }

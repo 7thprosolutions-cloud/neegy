@@ -141,6 +141,22 @@ async function handleApi(req, res, url) {
     try {
       started = await beginLogin(env, callback);
     } catch (err) {
+      // Error 415 is by far the most likely failure here and the raw message
+      // ("Callback URL not approved for this client application") does not say
+      // which URL, so it reads as unfixable. It is: X matches callbacks
+      // exactly, and this server sends whichever host it is being served from.
+      // Every origin the site runs on needs its own entry.
+      if (/code="415"/.test(err.message) || /Callback URL not approved/i.test(err.message)) {
+        return sendHtml(res, 502, page("Sign-in not configured", `
+          <h1>X sign-in needs this address approved</h1>
+          <p>X only accepts callback URLs that are registered exactly. This site is running on
+             <code>${escapeHtml(url.host)}</code>, so add this to the X developer portal under
+             <strong>User authentication settings &rarr; Callback URI</strong>:</p>
+          <p><code>${escapeHtml(callback)}</code></p>
+          <p style="font-size:13px">You can register more than one — keep every domain the site
+             runs on (temporary host and live domain) so switching between them never breaks sign-in.</p>
+          <a class="btn" href="/arena3d/dashboard.html">Play as a guest instead</a>`));
+      }
       return sendHtml(res, 502, page("Login failed", `<h1>Could not start X login</h1>
         <p>${escapeHtml(err.message)}</p>
         <a class="btn" href="/arena3d/dashboard.html">Back to dashboard</a>`));

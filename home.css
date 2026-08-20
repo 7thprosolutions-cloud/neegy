@@ -1,0 +1,410 @@
+/* $NEEGY homepage.
+   The page is dressed as the arena's pre-match screen: HUD chrome, ammo-counter
+   type, team colours. Every colour below is lifted from the game's own
+   materials rather than invented -- --gold is the character's goldBase
+   (0xe8b23c), --hit is the bullet-impact flash (0xff5f6d), --blue/--red are the
+   team tints (0x6fb3ff / 0xff6f6f). */
+
+:root {
+  --void: #0a0908;
+  --panel: #131117;
+  --panel-2: #1b1820;
+  --line: #2b2630;
+  --gold: #e8b23c;
+  --gold-hot: #ffd97a;
+  --hit: #ff5f6d;
+  --blue: #6fb3ff;
+  --red: #ff6f6f;
+  --text: #ede7dc;
+  --muted: #8b8378;
+
+  --display: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+  --body: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --gutter: clamp(20px, 5vw, 64px);
+  --stack: clamp(72px, 11vh, 132px);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img { max-width: 100%; display: block; }
+
+a { color: var(--gold); text-decoration-color: rgba(232, 178, 60, 0.35); text-underline-offset: 3px; }
+a:hover { color: var(--gold-hot); }
+
+:focus-visible {
+  outline: 2px solid var(--gold-hot);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.wrap { width: min(1180px, 100%); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* ---------- HUD primitives: the page's structural vocabulary ---------- */
+
+/* A channel label. The tick is a readout marker, not decoration -- it marks
+   where a HUD row begins, the same way the in-game squad bar does. */
+.chan {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+.chan::before {
+  content: "";
+  width: 26px;
+  height: 2px;
+  background: var(--gold);
+  flex: none;
+}
+
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.02; margin: 0; }
+
+h2 {
+  font-size: clamp(2rem, 5.2vw, 3.5rem);
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+}
+
+.lede { color: #c9c0b2; font-size: clamp(1rem, 1.6vw, 1.12rem); max-width: 62ch; }
+
+section { padding-block: var(--stack); position: relative; }
+
+/* ---------- hero: the pre-match screen ---------- */
+
+.hero {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding-block: clamp(80px, 12vh, 130px) var(--stack);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Arena dusk: a warm floor-glow under a cold sky, matching the game's lighting */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(120% 78% at 72% 108%, rgba(232, 178, 60, 0.20), transparent 62%),
+    radial-gradient(90% 60% at 12% -12%, rgba(111, 179, 255, 0.11), transparent 60%);
+}
+
+/* Faint scanlines. Kept near-invisible on purpose: it should read as a screen,
+   not as a filter. */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 3px);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  width: 100%;
+}
+
+.wordmark {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(3.6rem, 12vw, 8.2rem);
+  line-height: 0.82;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  margin: 14px 0 0;
+  background: linear-gradient(168deg, #fff3d0 0%, var(--gold-hot) 26%, var(--gold) 52%, #8a6413 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.wordmark .tick { color: var(--muted); -webkit-text-fill-color: var(--muted); font-size: 0.36em; vertical-align: 0.9em; }
+
+.hero-sub {
+  font-size: clamp(1.02rem, 1.9vw, 1.28rem);
+  color: #cfc6b8;
+  max-width: 44ch;
+  margin: 22px 0 0;
+}
+.hero-sub strong { color: var(--text); font-weight: 600; }
+
+/* CTA row */
+.cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+
+.btn {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.98rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 15px 26px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+.btn:hover { transform: translateY(-2px); }
+
+.btn-play {
+  background: linear-gradient(180deg, var(--gold-hot), var(--gold));
+  color: #241a05;
+  box-shadow: 0 8px 26px rgba(232, 178, 60, 0.26);
+}
+.btn-play:hover { color: #241a05; box-shadow: 0 12px 34px rgba(232, 178, 60, 0.38); }
+
+.btn-ghost { background: rgba(255,255,255,0.03); border-color: var(--line); color: var(--text); }
+.btn-ghost:hover { border-color: var(--gold); color: var(--gold-hot); }
+
+.cta-note { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); margin-top: 14px; letter-spacing: 0.04em; }
+
+/* The character in a targeting frame */
+.hero-figure { position: relative; display: grid; place-items: center; min-height: 380px; }
+
+/* The frame hugs the figure rather than a fixed width, and the figure is sized
+   by HEIGHT -- a tall character constrained by width overflows the viewport and
+   gets clipped at the fold. */
+.frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 34px 30px;
+  max-width: 100%;
+}
+/* corner brackets -- a reticle, drawn only at the corners so it frames without boxing in */
+.frame::before, .frame::after {
+  content: "";
+  position: absolute;
+  width: 46px; height: 46px;
+  border: 2px solid rgba(232, 178, 60, 0.55);
+}
+.frame::before { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.frame::after { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+
+.hero-char {
+  width: auto;
+  max-width: 100%;
+  max-height: min(62svh, 620px);
+  filter: drop-shadow(0 32px 44px rgba(0,0,0,0.72));
+  animation: idle 6.5s ease-in-out infinite;
+}
+@keyframes idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-11px); }
+}
+@media (prefers-reduced-motion: reduce) { .hero-char { animation: none; } }
+
+/* readouts pinned to the frame, like the in-game HUD */
+.readout {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.readout b { color: var(--text); font-weight: 500; }
+.readout.tl { top: 4px; left: 56px; }
+.readout.br { bottom: 4px; right: 56px; text-align: right; }
+.readout .dot { color: var(--gold); }
+
+/* ---------- stat strip ---------- */
+
+.strip {
+  border-block: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+}
+.strip-inner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+}
+.stat { background: var(--void); padding: 26px var(--gutter); }
+.stat dt { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.stat dd { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(1.3rem, 2.5vw, 1.9rem); color: var(--gold); line-height: 1; }
+.stat dd small { display: block; font-family: var(--body); font-weight: 400; font-size: 0.76rem; color: var(--muted); margin-top: 7px; letter-spacing: 0; }
+
+/* ---------- generic panels ---------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: clamp(24px, 3.4vw, 40px);
+}
+
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: center; }
+
+.prose p { color: #c3baac; }
+.prose p + p { margin-top: 1.05em; }
+.prose strong { color: var(--text); font-weight: 600; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--gold); background: rgba(232,178,60,0.09);
+  border: 1px solid rgba(232,178,60,0.28); border-radius: 999px;
+  padding: 7px 14px;
+}
+
+.proof { border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--panel-2); }
+.proof img { width: 100%; }
+.proof figcaption { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); padding: 12px 14px; border-top: 1px solid var(--line); line-height: 1.5; }
+
+/* ---------- modes ---------- */
+
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 34px; }
+.mode {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--accent, var(--gold));
+  border-radius: 4px;
+  padding: 22px;
+}
+.mode h3 { font-size: 1.5rem; letter-spacing: -0.01em; color: var(--accent, var(--gold)); }
+.mode p { margin: 8px 0 0; font-size: 0.9rem; color: var(--muted); line-height: 1.55; }
+.mode .slots { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-top: 14px; display: block; }
+
+.shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 34px; }
+.shot {
+  background: radial-gradient(85% 70% at 50% 100%, rgba(232,178,60,0.14), transparent 70%), var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: grid; place-items: end center;
+  padding: 24px 18px 40px;   /* bottom room so the caption clears the boots */
+  min-height: 268px;
+  overflow: hidden;
+}
+.shot img { max-height: 214px; width: auto; filter: drop-shadow(0 16px 22px rgba(0,0,0,0.6)); }
+.shot { margin: 0; position: relative; }
+.shot figcaption {
+  position: absolute; left: 16px; bottom: 12px;
+  font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* ---------- contract: an in-game pickup ---------- */
+
+.ca-panel { border-color: rgba(232,178,60,0.3); background: linear-gradient(180deg, rgba(232,178,60,0.06), transparent 60%), var(--panel); }
+
+.ca {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 18px 20px;
+  background: var(--void);
+  border: 1px dashed rgba(232,178,60,0.4);
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: clamp(0.68rem, 1.55vw, 0.94rem);
+  letter-spacing: 0.01em;
+  word-break: break-all;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.ca:hover { border-color: var(--gold); background: #100e0a; }
+.ca .ca-key { flex: none; font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+.ca .ca-hint { margin-left: auto; flex: none; font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+
+/* the hit-flash the game uses when a shot lands */
+.ca.acquired {
+  border-style: solid;
+  border-color: var(--gold-hot);
+  background: rgba(232, 178, 60, 0.16);
+  color: var(--gold-hot);
+}
+.ca.acquired .ca-hint { color: var(--gold-hot); }
+
+/* ---------- tokenomics ---------- */
+
+.econ { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 34px; }
+.econ .panel { display: flex; flex-direction: column; }
+.econ h3 { font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.01em; }
+.econ p { color: #c3baac; font-size: 0.95rem; margin: 12px 0 0; }
+.econ .tag {
+  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.18em; text-transform: uppercase;
+  padding: 5px 10px; border-radius: 999px; align-self: flex-start; margin-bottom: 14px;
+}
+.tag-live { color: #7ee0a8; background: rgba(126,224,168,0.1); border: 1px solid rgba(126,224,168,0.3); }
+.tag-soon { color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid var(--line); }
+
+.flow {
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.flow b { color: var(--gold); font-weight: 500; }
+
+/* ---------- footer ---------- */
+
+footer { border-top: 1px solid var(--line); padding-block: 46px; background: #080707; }
+.foot { display: flex; flex-wrap: wrap; gap: 18px 32px; align-items: center; justify-content: space-between; }
+.foot p { margin: 0; font-size: 0.86rem; color: var(--muted); }
+.foot .disclaimer { max-width: 52ch; font-size: 0.78rem; line-height: 1.6; }
+.by { font-family: var(--display); font-size: 1.02rem; letter-spacing: 0.02em; text-transform: uppercase; }
+.by a { text-decoration: none; }
+.by a:hover { text-decoration: underline; }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 940px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  /* Text first on small screens. Leading with the character looked striking
+     but pushed the wordmark and the sign-in button below the fold -- on a page
+     whose entire job is "sign in and play", the button has to be on the first
+     screen. The character follows it. */
+  .hero-figure { min-height: 0; }
+  .hero-char { max-height: min(34svh, 300px); }
+  .frame { padding: 24px 20px; }
+  .hero { min-height: 0; padding-block: 54px var(--stack); }
+  .split { grid-template-columns: 1fr; }
+  .strip-inner { grid-template-columns: repeat(2, 1fr); }
+  .modes { grid-template-columns: 1fr; }
+  .shots { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .shot { min-height: 190px; padding: 16px 8px 30px; }
+  .shot img { max-height: 140px; }
+  .shot figcaption { left: 10px; bottom: 9px; font-size: 0.56rem; letter-spacing: 0.1em; }
+  .econ { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .readout { display: none; }
+  .btn { width: 100%; justify-content: center; }
+  .ca { flex-wrap: wrap; }
+  .ca .ca-hint { margin-left: 0; }
+}

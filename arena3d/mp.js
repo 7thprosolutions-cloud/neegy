@@ -13,7 +13,7 @@
 //     by interpolating toward the last snapshot the server sent.
 //   - Health, damage, deaths and the end of the match are decided by the
 //     server. A local bullet hit reports a claim and waits to be told.
-import * as net from "/arena3d/net.js?v=19";
+import * as net from "/arena3d/net.js?v=20";
 
 export const mp = {
   active: false,
@@ -28,6 +28,9 @@ export const mp = {
   roster: [],                // entities from the most recent snapshot
   started: false,
   result: null,
+  // true while we are asking the server whether our match still exists after a
+  // reconnect (see joinMatch)
+  resyncing: false,
 };
 
 const ROOM_ID = new URLSearchParams(location.search).get("room");
@@ -38,7 +41,7 @@ export function isMultiplayerRequested() {
 
 // Resolves with the `start` payload once the server has told us which slots we
 // own, or null if there is no reachable server / no such room.
-export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot, onError } = {}) {
+export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot, onError, onMatchLost } = {}) {
   if (!ROOM_ID) return null;
   net.connect();
   // Same reasoning as the dashboard: a cold connection (DNS + TLS, or a server
@@ -60,7 +63,36 @@ export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot,
   net.on("death", (msg) => onDeath?.(msg));
   net.on("shot", (msg) => onShot?.(msg));
   net.on("over", (msg) => { mp.result = msg; onOver?.(msg); });
-  net.on("error", (msg) => onError?.(msg.message));
+  net.on("error", (msg) => {
+    // While resyncing, an error means the server does not know this room --
+    // see the status handler below.
+    if (mp.resyncing) {
+      mp.resyncing = false;
+      onMatchLost?.(msg.message);
+      return;
+    }
+    onError?.(msg.message);
+  });
+
+  // The socket coming back is not proof the match survived. Room state lives
+  // only in the server's memory, so a restart (every deploy does one) wipes it
+  // while the browser reconnects perfectly happily. Without this the player is
+  // left in a frozen arena -- remote characters stuck mid-stride, nothing
+  // responding, no explanation. Re-announce ourselves and find out.
+  net.on("status", (state) => {
+    if (state !== "open" || !mp.active || !mp.roomId) return;
+    mp.resyncing = true;
+    net.joinRoom(mp.roomId);
+    setTimeout(() => {
+      if (!mp.resyncing) return;
+      mp.resyncing = false;
+      onMatchLost?.("The server did not answer.");
+    }, 5000);
+  });
+
+  // Either of these means the server still has our room and we are back in it.
+  net.on("start", () => { mp.resyncing = false; });
+  net.on("snap", () => { mp.resyncing = false; });
 
   const start = await new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), 6000);

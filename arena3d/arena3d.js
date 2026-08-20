@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=19";
-import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=19";
-import { submitMatchResult } from "/arena3d/account.js?v=19";
-import * as MP from "/arena3d/mp.js?v=19";
-import { mp } from "/arena3d/mp.js?v=19";
+import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=20";
+import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=20";
+import { submitMatchResult } from "/arena3d/account.js?v=20";
+import * as MP from "/arena3d/mp.js?v=20";
+import { mp } from "/arena3d/mp.js?v=20";
 
 // ---------- DOM ----------
 const canvas = document.getElementById("game");
@@ -1994,6 +1994,23 @@ function applyNetShot(msg) {
   playShootSfx(true);
 }
 
+// The server restarted (or otherwise forgot this room) while we were playing.
+// Say so plainly and give the player a way out -- the alternative is standing
+// in a frozen arena with no idea why nothing responds.
+function applyNetMatchLost(reason) {
+  if (state !== "playing") return;
+  state = "over";
+  document.exitPointerLock && document.exitPointerLock();
+  showOverlay(
+    "MATCH ENDED",
+    "The game server restarted, so this match could not continue. It was not scored — "
+      + "your saved stats are unaffected. Jump back into the lobby to start another.",
+    "BACK TO LOBBY",
+    true
+  );
+  console.warn("multiplayer: match lost —", reason);
+}
+
 function applyNetOver(msg) {
   if (state !== "playing") return;
   state = "over";
@@ -2028,6 +2045,7 @@ async function startGame() {
       onDeath: applyNetDeath,
       onOver: applyNetOver,
       onShot: applyNetShot,
+      onMatchLost: applyNetMatchLost,
       onError: (message) => console.warn("multiplayer:", message),
     });
     if (joined) await MP.waitForRoster();

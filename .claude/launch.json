@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "-l", "5173", "."],
       "port": 5173
+    },
+    {
+      "name": "neegy-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/server.mjs"],
+      "port": 5174
     }
   ]
 }

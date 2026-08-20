@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>$NEEGY — Arena Dashboard</title>
+<link rel="stylesheet" href="/arena3d/style.css?v=17" />
+<link rel="stylesheet" href="/arena3d/dashboard.css?v=17" />
+</head>
+<body class="dash-body">
+
+  <a class="back-link" href="/index.html">&larr; $NEEGY</a>
+
+  <div class="dash-wrap">
+    <header class="dash-header">
+      <h1>ARENA DASHBOARD</h1>
+      <div class="dash-profile-chip" id="guestChip" hidden>
+        <label for="playerName">PLAYING AS</label>
+        <input id="playerName" type="text" maxlength="20" placeholder="Enter your name" autocomplete="off" />
+        <span class="dash-x-note" id="playerNameNote">— sign in with X to use your real handle</span>
+      </div>
+
+      <!-- Swapped in by dashboard.js once /api/me answers: the guest name box
+           above when signed out, this identity chip when signed in. Both start
+           hidden so the page never flashes the wrong one. -->
+      <div class="dash-account" id="accountChip" hidden>
+        <img class="dash-avatar" id="accountAvatar" alt="" />
+        <span class="dash-account-names">
+          <strong id="accountName"></strong>
+          <span id="accountHandle"></span>
+        </span>
+        <button id="signOutBtn" class="dash-btn-small dash-btn-ghost">SIGN OUT</button>
+      </div>
+      <a class="dash-x-signin" id="signInBtn" href="/auth/x/login" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18.9 2.3h3.4l-7.5 8.6 8.8 11.6h-6.9l-5.4-7.1-6.2 7.1H1.7l8-9.2L1.3 2.3h7.1l4.9 6.5zm-1.2 18.2h1.9L6.4 4.2H4.4z"/></svg>
+        SIGN IN WITH X
+      </a>
+    </header>
+
+    <div class="dash-columns">
+      <main class="dash-main">
+        <section class="dash-panel">
+          <div class="dash-panel-head">
+            <h2>PUBLIC SERVERS</h2>
+            <button id="createServerBtn" class="dash-btn-small">+ CREATE SERVER</button>
+          </div>
+
+          <div id="createServerForm" class="dash-create-form hidden">
+            <input id="newServerName" type="text" maxlength="24" placeholder="Name your server" autocomplete="off" />
+            <div class="dash-mode-picker" id="modePicker">
+              <button class="dash-mode-opt" data-mode="1v1">1v1</button>
+              <button class="dash-mode-opt" data-mode="3v3">3v3</button>
+              <button class="dash-mode-opt" data-mode="5v5">5v5</button>
+            </div>
+            <div class="dash-create-actions">
+              <button id="confirmCreateBtn" class="dash-btn-small dash-btn-primary">CREATE &amp; JOIN</button>
+              <button id="cancelCreateBtn" class="dash-btn-small dash-btn-ghost">CANCEL</button>
+            </div>
+          </div>
+
+          <div id="serverList" class="dash-server-list"></div>
+          <p class="dash-note">Anyone can create a server and invite friends — every server stays public, so anyone can drop in. A match won't start until all slots are filled.</p>
+        </section>
+      </main>
+
+      <aside class="dash-sidebar">
+        <section class="dash-panel">
+          <h2>YOUR STATS</h2>
+          <div class="dash-stat-row"><span>Kills</span><strong id="statKills">0</strong></div>
+          <div class="dash-stat-row"><span>Games Played</span><strong id="statGames">0</strong></div>
+          <div class="dash-stat-row"><span>XP</span><strong id="statXp">0</strong></div>
+        </section>
+
+        <section class="dash-panel">
+          <h2>GLOBAL RANKING</h2>
+          <div id="leaderboard" class="dash-leaderboard"></div>
+        </section>
+
+        <section class="dash-panel">
+          <h2>UPGRADES</h2>
+          <div class="dash-upgrade-card">
+            <div class="dash-upgrade-info">
+              <strong>Life Refill</strong>
+              <span>+10 full life bars, usable in-game</span>
+            </div>
+            <button class="dash-btn-small dash-btn-locked" disabled>0.1 SOL · COMING SOON</button>
+          </div>
+          <div class="dash-upgrade-card">
+            <div class="dash-upgrade-info">
+              <strong>Ammo Upgrade</strong>
+              <span>Bigger mags, faster reloads</span>
+            </div>
+            <button class="dash-btn-small dash-btn-locked" disabled>COMING SOON</button>
+          </div>
+          <div class="dash-upgrade-card">
+            <div class="dash-upgrade-info">
+              <strong>Skin Upgrade</strong>
+              <span>Alternate looks for your fighter</span>
+            </div>
+            <button class="dash-btn-small dash-btn-locked" disabled>COMING SOON</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div id="lobbyOverlay" class="dash-lobby-overlay hidden">
+    <div class="dash-lobby-card">
+      <h2 id="lobbyServerName">Server Name</h2>
+      <p id="lobbyModeLabel" class="dash-lobby-mode">1v1 Duel</p>
+      <div class="dash-spinner"></div>
+      <p id="lobbyStatus" class="dash-lobby-status">Waiting for the other player…</p>
+      <div id="lobbySlots" class="dash-lobby-slots"></div>
+      <div class="dash-lobby-actions">
+        <!-- Online only: the host may start before every slot is filled, and
+             the remaining slots become bots the host simulates locally. -->
+        <button id="startMatchBtn" class="dash-btn-small dash-btn-primary" hidden>START MATCH</button>
+        <button id="cancelLobbyBtn" class="dash-btn-small dash-btn-ghost">LEAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/arena3d/dashboard.js?v=17"></script>
+</body>
+</html>

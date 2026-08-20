@@ -1,0 +1,128 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0e1626;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #fff8e6;
+}
+
+#game {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.back-link {
+  position: fixed;
+  top: 12px;
+  left: 14px;
+  color: #ffe9a8;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  background: rgba(20, 16, 12, 0.5);
+  padding: 6px 12px;
+  border-radius: 20px;
+  z-index: 20;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  background: rgba(14, 22, 38, 0.92);
+  z-index: 30;
+  padding: 20px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h1 {
+  margin: 0;
+  font-size: 52px;
+  letter-spacing: 5px;
+  color: #ffe9a8;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4), 0 0 24px rgba(255, 179, 71, 0.35);
+}
+
+.overlay .tagline {
+  margin: 0 0 8px;
+  color: #fff8e6cc;
+  font-size: 15px;
+  font-weight: bold;
+  max-width: 480px;
+}
+
+.overlay .result {
+  font-size: 30px;
+  color: #ffe9a8;
+  margin: 0 0 4px;
+  letter-spacing: 1px;
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 4px 26px;
+  margin: 6px 0 4px;
+  font-size: 13px;
+  text-align: left;
+  color: #fff8e6dd;
+}
+
+.controls-grid b {
+  color: #ffe9a8;
+}
+
+.overlay .hint {
+  max-width: 480px;
+  color: #fff8e6bb;
+  font-size: 13px;
+  margin: 4px 0 14px;
+}
+
+#startBtn {
+  padding: 14px 42px;
+  font-size: 19px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b5762a, 0 6px 16px rgba(0, 0, 0, 0.25);
+  transition: transform 0.05s ease;
+}
+
+#startBtn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #b5762a, 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.footnote {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #fff8e680;
+}

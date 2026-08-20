@@ -1,5 +1,40 @@
 node_modules/
 .DS_Store
 Sprite/
-package.json
+# package.json is REQUIRED by Hostinger's Web App (GitHub) deploy -- it is what
+# tells the platform the Node version and the start script, so it must be
+# committed. package-lock.json stays ignored: the server has zero runtime
+# dependencies, so there is nothing to lock, and the only devDependency (sharp,
+# for the texture script) is a local tool.
 package-lock.json
+.env
+server/data/*.json
+
+# pre-compression asset backup (see scripts/compress-character-texture.mjs)
+*.orig.glb
+
+# ---- Large source/intermediate assets: kept locally, deliberately out of git ----
+# Git history is permanent, so committing these once means carrying them in
+# every clone forever. None of them are loaded at runtime -- the game ships
+# arena3d/assets/shooter_character.glb (3.6MB) and nothing else from here.
+#
+# Abandoned AI-generated meshes from the paused reconstruction experiment
+# (2 x 52MB, unreferenced by any code -- see the OLD NOTES in arena3d/HANDOFF.md)
+arena3d/assets/generated/
+# Source 4096px texture; already baked into shooter_character.glb (15MB)
+arena3d/assets/shooter_pack_textures/
+# Kenney weapon pack source; the gun is already bone-parented into the glb (6.5MB)
+arena3d/assets/weapon_pack/
+# Blender working files (34MB)
+Blender/
+
+# Character reference art. These originals contain a third-party engraving and
+# name tag that must not be reproduced (see arena3d/HANDOFF.md); if this GitHub
+# repo is public, committing them publishes that artwork. Excluded by default --
+# remove this line only if you have checked the repo is private and you want
+# them versioned.
+assets/Character/
+
+# Python bytecode cache
+__pycache__/
+*.pyc

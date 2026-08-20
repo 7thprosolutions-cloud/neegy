@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>$NEEGY — Arena 3D (V3 preview)</title>
+<link rel="stylesheet" href="/arena3d/style.css?v=17" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="crosshair"></div>
+
+  <a class="back-link" id="backLink" href="/index.html">&larr; $NEEGY</a>
+
+  <div id="hud" class="hud hidden">
+    <div class="hp-block you">
+      <div class="hp-name">YOU</div>
+      <div class="hp-track"><div id="hpFillYou" class="hp-fill you"></div></div>
+    </div>
+    <div class="hp-block rival">
+      <div class="hp-name">ENEMY TEAM</div>
+      <div class="hp-track"><div id="hpFillRival" class="hp-fill rival"></div></div>
+    </div>
+  </div>
+
+  <div id="squadStatus" class="squad-status hidden">
+    <span class="squad-blue">BLUE <span id="blueAliveCount">4</span>/<span id="blueTeamSize">4</span></span>
+    &nbsp;vs&nbsp;
+    <span class="squad-red">RED <span id="redAliveCount">4</span>/<span id="redTeamSize">4</span></span>
+  </div>
+
+  <div id="buildHint" class="build-hint hidden">Q: WALL &nbsp; E: RAMP &nbsp; <span id="structCount">0/8</span> up</div>
+
+  <div id="spectatorNote" class="spectator-note hidden">👁 YOU DIED — SPECTATING YOUR SQUAD &nbsp; (WASD to fly, Space/Shift up-down)</div>
+
+  <pre id="debugReadout" class="debug-readout hidden"></pre>
+
+  <div id="overlay" class="overlay">
+    <h1 id="introTitle">ARENA 3D</h1>
+    <p class="tagline" id="introTagline">A small walled town. Squad up and take the high ground.</p>
+    <div class="controls-grid">
+      <div><b>W A S D</b> — move</div>
+      <div><b>Mouse</b> — look around</div>
+      <div><b>Space</b> — jump</div>
+      <div><b>Click / F</b> — shoot (hold)</div>
+      <div><b>Q</b> — build wall</div>
+      <div><b>E</b> — build ramp</div>
+    </div>
+    <p class="hint">Click DROP IN to lock your mouse for looking around. Press Esc any time to free it.</p>
+    <button id="startBtn">DROP IN</button>
+    <p class="footnote">V3 preview &mdash; 3D build, not linked from the live site yet. Character is a flat billboard sprite, not a 3D model.</p>
+  </div>
+
+  <script type="module" src="/arena3d/arena3d.js?v=17"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>$NEEGY — PvP Duel (V2 preview)</title>
+<link rel="stylesheet" href="/pvp/style.css?v=1" />
+</head>
+<body>
+  <main class="stage">
+    <div class="topbar">
+      <a class="back-link" href="/index.html">&larr; back to $NEEGY</a>
+      <span class="build-tag">V2 PREVIEW &mdash; local build, not linked from the live site yet</span>
+    </div>
+
+    <div class="game-frame">
+      <canvas id="game" width="960" height="480"></canvas>
+
+      <div id="overlay" class="overlay">
+        <h1>PvP DUEL</h1>
+        <p class="tagline">Ansem vs. Orangie &mdash; 5 rounds each, then it's fists.</p>
+        <div class="controls-grid">
+          <div class="controls-col">
+            <div class="controls-name you">ANSEM</div>
+            <div><b>A / D</b> — move</div>
+            <div><b>W</b> — jump</div>
+            <div><b>F</b> — shoot / punch</div>
+          </div>
+          <div class="controls-col">
+            <div class="controls-name rival">ORANGIE</div>
+            <div><b>&larr; / &rarr;</b> — move</div>
+            <div><b>&uarr;</b> — jump</div>
+            <div><b>Enter</b> — shoot / punch</div>
+          </div>
+        </div>
+        <p class="hint">Duck behind the low brick cover to block shots, use the platform to jump over it. Empty your clip and it's a brawl until someone hits zero HP.</p>
+        <button id="startBtn">START DUEL</button>
+        <p class="footnote">Local 2-player, same keyboard. No online play yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="/pvp/pvp.js?v=1"></script>
+</body>
+</html>

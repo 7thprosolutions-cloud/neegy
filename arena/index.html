@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>$NEEGY — Arena (V3 preview)</title>
+<link rel="stylesheet" href="/arena/style.css?v=1" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <a class="back-link" href="/index.html">&larr; $NEEGY</a>
+
+  <div id="overlay" class="overlay">
+    <h1>ARENA</h1>
+    <p class="tagline">One arena. One rival. Build cover, take the high ground, win the fight.</p>
+    <div class="controls-grid">
+      <div><b>A / D</b> or <b>&larr; / &rarr;</b> — move</div>
+      <div><b>W</b> or <b>&uarr;</b> — jump</div>
+      <div><b>S</b> or <b>&darr;</b> — duck</div>
+      <div><b>Mouse / F</b> — shoot (hold)</div>
+      <div><b>Q</b> — build wall</div>
+      <div><b>E</b> — build ramp</div>
+    </div>
+    <p class="hint">Walls block shots and can be destroyed. Ramps let you climb for high ground. Both cost a short cooldown and you can only have a few up at once.</p>
+    <button id="startBtn">DROP IN</button>
+    <p class="footnote">V3 preview &mdash; local build, not linked from the live site yet.</p>
+  </div>
+
+  <script src="/arena/arena.js?v=1"></script>
+</body>
+</html>

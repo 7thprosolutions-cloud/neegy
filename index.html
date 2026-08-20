@@ -2,257 +2,242 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>$NEEGY — the meme that got its own arena</title>
-<meta name="description" content="$NEEGY is a Solana meme coin built with the creator of the original viral clip — and a real 3D multiplayer arena shooter. Sign in with X and drop in." />
-
-<meta property="og:title" content="$NEEGY — the meme that got its own arena" />
-<meta property="og:description" content="A Solana meme coin with a real 3D multiplayer shooter. Sign in with X and drop in." />
-<meta property="og:image" content="/assets/web/favicon-512.png" />
-<meta name="twitter:card" content="summary_large_image" />
-
-<link rel="icon" href="/assets/web/favicon-32.png" sizes="32x32" />
-<link rel="apple-touch-icon" href="/assets/web/favicon-180.png" />
-
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Sora:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="/home.css?v=7" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neegy — Gold Gunner</title>
+<link rel="icon" type="image/png" sizes="16x16" href="assets/web/favicon-16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/web/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="assets/web/favicon-512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/web/favicon-180.png" />
+<link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
-
-<!-- ============ hero: dressed as the arena's pre-match screen ============ -->
-<header class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <p class="chan">Solana · meme coin · playable</p>
-      <h1 class="wordmark">$Neegy<span class="tick">®</span></h1>
-      <p class="hero-sub">
-        One furious Fortnite voice-chat rant became a <strong>2.1M-view</strong> meme, then a coin,
-        and now a real <strong>3D multiplayer arena</strong> you can actually play.
-        Built with the guy who made the original clip.
-      </p>
-
-      <div class="cta-row">
-        <!-- Swapped by home.js once we know whether a game server is reachable
-             and whether this visitor is already signed in. -->
-        <a class="btn btn-play" id="playBtn" href="/arena3d/dashboard.html">
-          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2.3h3.4l-7.5 8.6 8.8 11.6h-6.9l-5.4-7.1-6.2 7.1H1.7l8-9.2L1.3 2.3h7.1l4.9 6.5zm-1.2 18.2h1.9L6.4 4.2H4.4z"/></svg>
-          <span id="playLabel">Sign in with X to play</span>
-        </a>
-        <a class="btn btn-ghost" href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump" target="_blank" rel="noopener noreferrer">Buy $NEEGY</a>
-      </div>
-      <p class="cta-note" id="ctaNote">Your X handle becomes your name on the leaderboard.</p>
+  <main class="stage">
+    <div class="hud">
+      <div class="hud-item">SCORE <span id="score">0</span></div>
+      <div class="hud-item">BEST <span id="best">0</span></div>
+      <div class="hud-item lives" id="lives">♥ ♥ ♥</div>
+      <button type="button" id="muteBtn" class="mute-btn" aria-label="Toggle sound effects">&#128266;</button>
     </div>
 
-    <div class="hero-figure">
-      <div class="frame">
-        <p class="readout tl"><span class="dot">●</span> LIVE <b>1v1 · 3v3 · 5v5</b></p>
-        <img class="hero-char" src="/assets/web/game/hero-fire.webp" width="480" height="835"
-             alt="The gold Neegy character in a firing stance, rifle raised" />
-        <p class="readout br">RIG <b>17 clips</b> · ARENA <b>104m</b></p>
+    <div class="game-frame">
+      <canvas id="game" width="960" height="480"></canvas>
+
+      <div id="overlay" class="overlay">
+        <h1>$NEEGY</h1>
+        <p class="contract">F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump</p>
+        <p class="tagline">Gold Gunner Arcade</p>
+        <p class="hint">Run right, jump the gaps, hop onto ledges, and shoot down anything in your way.</p>
+        <div class="controls">
+          <div><b>&larr; &rarr;</b> or <b>A / D</b> — move</div>
+          <div><b>&uarr;</b> or <b>W</b> — jump</div>
+          <div><b>SPACE</b> or <b>click</b> — shoot</div>
+        </div>
+        <button id="startBtn">PLAY</button>
+        <p class="footnote">No sign up. Just your score.</p>
       </div>
     </div>
-  </div>
-</header>
 
-<!-- ============ the numbers behind the meme ============ -->
-<div class="strip">
-  <dl class="strip-inner">
-    <div class="stat"><dt>Week one views</dt><dd>2.1M+<small>Original TikTok clip</small></dd></div>
-    <div class="stat"><dt>Week one likes</dt><dd>162K+<small>Before the remixes</small></dd></div>
-    <div class="stat"><dt>Remix likes</dt><dd>500K+<small>Front-facing version</small></dd></div>
-    <div class="stat"><dt>Meme creator</dt><dd>Onboarded<small>@1104yyh, directly involved</small></dd></div>
-  </dl>
-</div>
+    <div class="touch-controls" id="touchControls">
+      <div class="tc-left">
+        <button type="button" id="tcLeft" class="tc-btn" aria-label="Move left">&#9664;</button>
+        <button type="button" id="tcRight" class="tc-btn" aria-label="Move right">&#9654;</button>
+      </div>
+      <div class="tc-right">
+        <button type="button" id="tcFire" class="tc-btn tc-fire" aria-label="Shoot">FIRE</button>
+        <button type="button" id="tcJump" class="tc-btn tc-jump" aria-label="Jump">JUMP</button>
+      </div>
+    </div>
+  </main>
 
-<!-- ============ origin ============ -->
-<section id="origin">
-  <div class="wrap split">
-    <div class="prose">
-      <p class="chan">Origin</p>
-      <h2>How Neegy<br />was born</h2>
-      <p style="margin-top:22px">
+  <section class="meme-page">
+    <div class="scroll-hint">
+      <span>keep scrolling</span>
+      <div class="scroll-arrow">&darr;</div>
+    </div>
+
+    <div class="meme-hero">
+      <img class="hero-art" src="assets/sprites/player/walk1.png" alt="$NEEGY character" />
+      <div class="hero-copy">
+        <h2 class="meme-title">$NEEGY</h2>
+        <p class="meme-tagline">The gold-plated Fortnite legend. Now on-chain.</p>
+
+        <div class="contract-box">
+          <span class="contract-label">CONTRACT ADDRESS</span>
+          <div class="contract-row">
+            <code id="contractAddress">F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump</code>
+            <button id="copyContractBtn" class="copy-btn" type="button">Copy</button>
+          </div>
+        </div>
+
+        <div class="cta-row">
+          <a
+            class="buy-btn"
+            href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Buy $NEEGY on pump.fun</a>
+          <button
+            type="button"
+            class="donate-btn"
+            data-sol-address="2HEsBXsyrb2roxcUwPPKNW9eajm7mL6eKNCWU1XbrCnn"
+          >Donate SOL for development</button>
+        </div>
+        <p class="support-line">Say it with your chest. Support the meme, support the OG. &#128293;</p>
+      </div>
+    </div>
+
+    <div class="meme-card">
+      <h3>How Neegy Was Born</h3>
+      <p>
         It started with one furious Fortnite voice-chat rant caught on camera. On
-        <strong>July 9, 2026</strong>, TikTok creator <strong>@1104yyh</strong> posted the clip over
-        gameplay footage with a gold caricature reacting to every word — and it exploded to
-        <strong>2.1M+ views</strong> and <strong>162K+ likes</strong> in three weeks.
+        <b>July 9, 2026</b>, TikTok creator <b>@1104yyh</b> posted the clip over gameplay footage with a
+        gold caricature reacting to every word &mdash; and it exploded to <b>2.1M+ views</b> and
+        <b>162K+ likes</b> in three weeks.
       </p>
       <p>
-        By <strong>July 14</strong>, a front-facing remix of the gold character pushed the trend
-        further, pulling in <strong>500K+ more likes</strong> on its own. From there it spread to
-        Instagram and X, spinning off diamond, galaxy, and brick versions of the character
-        along the way.
+        By <b>July 14</b>, a front-facing remix of the gold character pushed the trend even further,
+        pulling in <b>500K+</b> more likes on its own. From there it spread to Instagram and X, spinning
+        off diamond, galaxy, and brick versions of the character along the way.
       </p>
-      <p style="margin-top:22px">
-        <a href="https://knowyourmeme.com/memes/neegy" target="_blank" rel="noopener noreferrer">Read the full history on KnowYourMeme →</a>
-      </p>
+      <div class="stat-row">
+        <div class="stat-pill"><b>2.1M+</b><span>views (week 1)</span></div>
+        <div class="stat-pill"><b>162K+</b><span>likes (week 1)</span></div>
+      </div>
+      <a class="kym-link" href="https://knowyourmeme.com/memes/neegy" target="_blank" rel="noopener noreferrer">
+        Read the full history on KnowYourMeme &rarr;
+      </a>
     </div>
 
-    <div class="panel">
-      <p class="chan">Built with the real creator</p>
-      <p class="prose" style="margin:0 0 22px">
-        Most meme coins have nothing to do with the person who actually made the meme.
-        $NEEGY is different: <strong>@1104yyh</strong>, the original creator of the viral clip, is
-        directly onboarded and benefits from this project — including this game. No riding on
-        someone else's creation without them.
+    <div class="meme-card creator-card">
+      <h3>Built With the Real Creator</h3>
+      <p>
+        Most meme coins have nothing to do with the person who actually made the meme. $NEEGY is
+        different: <b>@1104yyh</b>, the original creator of the viral clip, is directly onboarded and
+        benefits from this project &mdash; including this very game. No riding on someone else's
+        creation without them &mdash; unlike the earlier, unaffiliated coins that came before this one.
       </p>
-      <figure class="proof" style="margin:0">
-        <img src="/assets/web/tiktok-proof.jpg" loading="lazy"
-             alt="@1104yyh's TikTok profile showing the $NEEGY contract address in his bio, next to his original Neegy video" />
-        <figcaption>The contract address in @1104yyh's own TikTok bio, beside the original clip.</figcaption>
-      </figure>
-      <p style="margin:18px 0 0"><span class="pill">✅ OG meme creator onboarded</span></p>
-      <p style="margin:14px 0 0; font-size:0.88rem; color:var(--muted)">
-        Follow the OG:
-        <a href="https://www.tiktok.com/@1104yyh" target="_blank" rel="noopener noreferrer">TikTok @1104yyh</a> ·
+      <div class="creator-proof">
+        <img
+          class="creator-shot"
+          src="assets/web/tiktok-proof.jpg"
+          alt="@1104yyh's TikTok profile showing the $NEEGY contract address in his bio, alongside his original 2.5M-view Neegy video"
+        />
+        <p class="proof-caption">OG $NEEGY meme creator onboarded &#9989;</p>
+      </div>
+      <div class="social-row">
+        <span>Follow the OG:</span>
+        <a href="https://www.tiktok.com/@1104yyh" target="_blank" rel="noopener noreferrer">TikTok @1104yyh</a>
         <a href="https://x.com/TheFlash_Point" target="_blank" rel="noopener noreferrer">X @TheFlash_Point</a>
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ the game ============ -->
-<section id="game">
-  <div class="wrap">
-    <p class="chan">The arena</p>
-    <h2>A meme coin you<br />can actually play</h2>
-    <p class="lede" style="margin-top:22px">
-      Not a mini-game bolted onto a landing page. A full 3D team shooter with a rigged
-      character, cover, grenades on the way, and real players — matched through your X account
-      so the name over your head is the one people know you by.
-    </p>
-
-    <div class="modes">
-      <article class="mode" style="--accent: var(--blue)">
-        <h3>1v1</h3>
-        <p>Straight duel. Two players, opposite ends of the arena, no hiding behind a squad.</p>
-        <span class="slots">3 servers · 2 slots each</span>
-      </article>
-      <article class="mode" style="--accent: var(--gold)">
-        <h3>3v3</h3>
-        <p>Small squads, fast rounds. Enough cover to flank, small enough that one player matters.</p>
-        <span class="slots">3 servers · 6 slots each</span>
-      </article>
-      <article class="mode" style="--accent: var(--red)">
-        <h3>5v5</h3>
-        <p>Full assault across the whole arena. Push together or get picked apart.</p>
-        <span class="slots">3 servers · 10 slots each</span>
-      </article>
-    </div>
-
-    <div class="shots">
-      <figure class="shot">
-        <img src="/assets/web/game/mode-1v1.webp" width="173" height="460" loading="lazy"
-             alt="The Neegy character holding a rifle at the ready, lit in team blue" />
-        <figcaption>Holding an angle</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="/assets/web/game/mode-3v3.webp" width="323" height="460" loading="lazy"
-             alt="The Neegy character sprinting with a rifle, lit in gold" />
-        <figcaption>Pushing the flank</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="/assets/web/game/mode-5v5.webp" width="327" height="460" loading="lazy"
-             alt="The Neegy character mid-jump with a rifle, lit in team red" />
-        <figcaption>Jumping the gap</figcaption>
-      </figure>
-    </div>
-
-    <p class="cta-note" style="margin-top:26px">
-      Empty slots fill with bots, so a match starts whenever you do — real players replace them as they join.
-      Prefer the original 2D game? <a href="/arcade.html">Play the Gold Gunner arcade →</a>
-    </p>
-  </div>
-</section>
-
-<!-- ============ contract ============ -->
-<section id="contract">
-  <div class="wrap">
-    <div class="panel ca-panel">
-      <p class="chan">Contract address · Solana</p>
-      <h2 style="font-size:clamp(1.6rem,3.4vw,2.4rem)">Verify before you buy</h2>
-      <button type="button" class="ca" id="caBtn" data-address="F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump">
-        <span class="ca-key">CA</span>
-        <span id="caText">F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump</span>
-        <span class="ca-hint" id="caHint">Click to copy</span>
-      </button>
-      <p class="cta-note" style="margin-top:16px">
-        This is the only contract address. Anything else claiming to be $NEEGY is not.
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ tokenomics ============ -->
-<section id="tokenomics">
-  <div class="wrap">
-    <p class="chan">Tokenomics</p>
-    <h2>Playing is the<br />distribution</h2>
-    <p class="lede" style="margin-top:22px">
-      Two loops connect the arena to the coin. One is live now. One is being built.
-    </p>
-
-    <div class="econ">
-      <article class="panel">
-        <span class="tag tag-live">Live now</span>
-        <h3>XP counts toward the airdrop</h3>
-        <p>
-          Every kill and every match banks XP against your X handle. That XP is what the
-          airdrop will be weighted by — so the people who actually showed up and played are the
-          ones it goes to, not whoever happened to be watching a chart.
-        </p>
-        <p class="flow"><b>Play</b> → <b>Earn XP</b> → <b>Airdrop weight</b></p>
-      </article>
-
-      <article class="panel">
-        <span class="tag tag-soon">Coming soon</span>
-        <h3>Upgrade SOL goes to the LP</h3>
-        <p>
-          When paid upgrades land, <strong>all SOL collected from them goes straight into the
-          $NEEGY liquidity pool</strong>. Money spent in the arena deepens the pool every holder
-          trades against, instead of leaving the ecosystem.
-        </p>
-        <p class="flow"><b>Buy upgrade</b> → <b>SOL collected</b> → <b>$NEEGY liquidity pool</b></p>
-      </article>
-    </div>
-
-    <p class="cta-note" style="margin-top:22px">
-      Upgrades are placeholders today — nothing is chargeable and no payment code is live yet.
-    </p>
-  </div>
-</section>
-
-<!-- ============ closing CTA ============ -->
-<section id="join" style="padding-top:0">
-  <div class="wrap">
-    <div class="panel" style="text-align:center">
-      <h2 style="font-size:clamp(1.8rem,4.4vw,3rem)">Drop in</h2>
-      <p class="lede" style="margin:16px auto 0; text-align:center">
-        Sign in with X, pick a server, and the match starts. No install, no wallet needed to play.
-      </p>
-      <div class="cta-row" style="justify-content:center">
-        <a class="btn btn-play" id="playBtn2" href="/arena3d/dashboard.html">
-          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2.3h3.4l-7.5 8.6 8.8 11.6h-6.9l-5.4-7.1-6.2 7.1H1.7l8-9.2L1.3 2.3h7.1l4.9 6.5zm-1.2 18.2h1.9L6.4 4.2H4.4z"/></svg>
-          <span id="playLabel2">Sign in with X to play</span>
-        </a>
       </div>
     </div>
-  </div>
-</section>
 
-<footer>
-  <div class="wrap foot">
-    <p class="disclaimer">
-      $NEEGY is a community meme coin. Not financial advice — always do your own research.
-    </p>
-    <p class="by">
-      Game developed by
-      <a href="https://x.com/EDthemountain" target="_blank" rel="noopener noreferrer">Mountain ↗</a>
-    </p>
-  </div>
-</footer>
+    <div class="meme-card">
+      <h3>Where This Is Headed</h3>
+      <div class="roadmap">
+        <div class="roadmap-step">
+          <div class="roadmap-badge">V1</div>
+          <div class="roadmap-body">
+            <div class="roadmap-heading">
+              <span>Launch</span>
+              <span class="roadmap-status live">LIVE NOW</span>
+            </div>
+            <p>The game you're playing right now. $NEEGY is live, the OG creator is onboarded, and the meme is officially on-chain.</p>
+          </div>
+        </div>
+        <div class="roadmap-step">
+          <div class="roadmap-badge">V2</div>
+          <div class="roadmap-body">
+            <div class="roadmap-heading">
+              <span>Multiplayer</span>
+              <span class="roadmap-status soon">SOON</span>
+            </div>
+            <p>Team up or go head-to-head. Play $NEEGY with the rest of the community in real time.</p>
+          </div>
+        </div>
+        <div class="roadmap-step">
+          <div class="roadmap-badge">V3</div>
+          <div class="roadmap-body">
+            <div class="roadmap-heading">
+              <span>Coin Integration</span>
+              <span class="roadmap-status soon">SOON</span>
+            </div>
+            <p>Your in-game score becomes real. Points equal $NEEGY — the better you play, the more you earn.</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
-<script src="/home.js?v=4"></script>
+    <div class="meme-footer">
+      <div class="footer-cta-row">
+        <a
+          class="buy-btn"
+          href="https://pump.fun/coin/F1XdReoHL3GweeCG4sgoZGAdsUNt8sda8n5EE2TNpump"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Buy $NEEGY on pump.fun</a>
+        <button
+          type="button"
+          class="donate-btn"
+          data-sol-address="2HEsBXsyrb2roxcUwPPKNW9eajm7mL6eKNCWU1XbrCnn"
+        >Donate SOL for development</button>
+      </div>
+      <p class="disclaimer">$NEEGY is a community meme coin. Not financial advice — always do your own research.</p>
+      <p class="credit">
+        Website and game developed by
+        <a href="https://x.com/EDthemountain" target="_blank" rel="noopener noreferrer">Mountain</a>
+      </p>
+    </div>
+  </section>
+
+  <script src="game.js?v=15"></script>
+  <script>
+    function flashButtonState(btn, label, durationMs) {
+      const original = btn.textContent;
+      btn.textContent = label;
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.classList.remove("copied");
+      }, durationMs || 1500);
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (e) {
+        ok = false;
+      }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    function copyToClipboard(btn, text, successLabel, durationMs) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => flashButtonState(btn, successLabel, durationMs))
+        .catch(() => flashButtonState(btn, fallbackCopy(text) ? successLabel : "Copy failed", durationMs));
+    }
+
+    const copyBtn = document.getElementById("copyContractBtn");
+    const addressEl = document.getElementById("contractAddress");
+    copyBtn.addEventListener("click", () => {
+      copyToClipboard(copyBtn, addressEl.textContent.trim(), "Copied!");
+    });
+
+    document.querySelectorAll(".donate-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const address = btn.dataset.solAddress;
+        copyToClipboard(btn, address, `Copied: ${address}`, 3200);
+      });
+    });
+  </script>
 </body>
 </html>

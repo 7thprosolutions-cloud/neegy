@@ -18,7 +18,11 @@ import { recordMatch } from "./store.mjs";
 const TICK_MS = 66; // ~15 snapshots/sec -- plenty for this pace, easy on bandwidth
 const LOBBY_COUNTDOWN_MS = 3000;
 const OVER_LINGER_MS = 8000;
-const MAX_ROOMS = 40;
+// Player-created rooms, on top of the always-on ones. At 10 players each this
+// is a ceiling of ~2000 concurrent players -- far beyond what one process
+// should be asked to hold, so the practical limit is CPU and bandwidth, not
+// this number. It exists to stop one script opening unbounded rooms.
+const MAX_ROOMS = 200;
 const XP_PER_KILL = 25;
 const XP_PER_GAME = 5;
 
@@ -37,15 +41,45 @@ function now() {
 
 // ---------- room shape ----------
 
-export function createRoom({ name, mode, hostClient }) {
-  if (rooms.size >= MAX_ROOMS) throw new Error("Too many servers open right now.");
+// Always-on servers, created at startup and never removed when they empty.
+// Without these a first-time visitor lands on an empty browser list and has to
+// know to create a room before anything can happen -- which reads as "nobody
+// plays this" even when the game is working perfectly.
+// Three of each mode. Sizing matters: these hold 3*(2+6+10) = 54 players, and
+// a measured peak for ~1000 visitors/day lands near 40 concurrent -- so the
+// always-on servers alone absorb a normal peak without anyone needing to know
+// how to create a room. Past that, players create their own (up to MAX_ROOMS).
+const PERMANENT_ROOMS = [
+  { name: "Sunset Duel", mode: "1v1" },
+  { name: "Backlot Duel", mode: "1v1" },
+  { name: "Midnight Duel", mode: "1v1" },
+  { name: "Town Skirmish", mode: "3v3" },
+  { name: "Rooftop Skirmish", mode: "3v3" },
+  { name: "Scrapyard Skirmish", mode: "3v3" },
+  { name: "Gold Rush Assault", mode: "5v5" },
+  { name: "Dust Bowl Assault", mode: "5v5" },
+  { name: "Cargo Bay Assault", mode: "5v5" },
+];
+
+export function ensurePermanentRooms() {
+  for (const spec of PERMANENT_ROOMS) {
+    const exists = [...rooms.values()].some((r) => r.permanent && r.name === spec.name);
+    if (!exists) createRoom({ name: spec.name, mode: spec.mode, permanent: true });
+  }
+  return [...rooms.values()].filter((r) => r.permanent).length;
+}
+
+export function createRoom({ name, mode, hostClient, permanent = false }) {
+  if (!permanent && rooms.size >= MAX_ROOMS) throw new Error("Too many servers open right now.");
   if (!MODES[mode]) throw new Error("Unknown mode: " + mode);
   const room = {
     id: id("room"),
+    permanent,
     name: String(name || "").trim().slice(0, 24) || `${hostClient.displayName}'s Server`,
     mode,
     teamSize: MODES[mode].teamSize,
-    hostId: hostClient.id,
+    // A permanent room has nobody in it yet, so no host until someone joins.
+    hostId: hostClient ? hostClient.id : null,
     state: "lobby", // lobby | countdown | playing | over
     clients: new Map(), // clientId -> client
     entities: new Map(), // entityId -> { id, ownerId, team, name, isBot, hp, alive, x,y,z, facing, anim }
@@ -63,7 +97,8 @@ export function roomSummary(room) {
     id: room.id,
     name: room.name,
     mode: room.mode,
-    hostName: room.clients.get(room.hostId)?.displayName || "—",
+    hostName: room.clients.get(room.hostId)?.displayName || (room.permanent ? "open" : "—"),
+    permanent: Boolean(room.permanent),
     players: room.clients.size,
     capacity: room.teamSize * 2,
     state: room.state,
@@ -90,6 +125,9 @@ export function joinRoom(room, client) {
   client.team = pickTeam(room);
   room.clients.set(client.id, client);
   room.scores.set(client.id, { kills: 0, deaths: 0 });
+  // First one into an always-on room takes the host role, which is what gives
+  // them the START control and makes them the simulator for any bot slots.
+  if (!room.hostId || !room.clients.has(room.hostId)) room.hostId = client.id;
   return room;
 }
 
@@ -106,8 +144,17 @@ export function leaveRoom(client) {
   client.team = null;
 
   if (room.clients.size === 0) {
-    rooms.delete(room.id);
-    return null;
+    // Player-created rooms disappear with their last player; always-on rooms
+    // stay listed and reset so the next visitor can drop straight in.
+    if (!room.permanent) {
+      rooms.delete(room.id);
+      return null;
+    }
+    room.hostId = null;
+    room.state = "lobby";
+    room.countdownEndsAt = 0;
+    room.entities.clear();
+    return room;
   }
   // host left -- promote whoever has been here longest so bot simulation and
   // the START control do not vanish with them

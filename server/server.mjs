@@ -13,6 +13,7 @@ import { beginLogin, completeLogin } from "./xauth.mjs";
 import {
   upsertPlayer, recordMatch, leaderboard,
   createSession, sessionPlayer, destroySession, describeStorage,
+  sweepSessions, flushNow,
 } from "./store.mjs";
 import { attachGameServer } from "./gameserver.mjs";
 
@@ -336,6 +337,31 @@ const server = http.createServer(async (req, res) => {
 // same origin and the same session cookie) at ws://<host>/ws.
 attachGameServer(server);
 
+// Drop expired sessions hourly. Without this they only ever get cleaned up if
+// that exact session is looked up again, so abandoned ones pile up forever in
+// a file that is rewritten in full on every login.
+const sessionSweep = setInterval(() => {
+  const removed = sweepSessions();
+  if (removed) console.log(`[sessions] expired ${removed} session(s)`);
+}, 60 * 60 * 1000);
+sessionSweep.unref?.();
+
+// Without this, a port clash throws an unhandled 'error' event and dumps a
+// stack trace, which says nothing useful about what to actually do.
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error("");
+    console.error(`Port ${PORT} is already in use -- something else is running there.`);
+    console.error("Stop that process, or start this one on another port:  PORT=5175 npm start");
+    console.error("");
+  } else {
+    console.error("");
+    console.error("Server failed to start:", err.message);
+    console.error("");
+  }
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   const configured = Boolean(env.X_CONSUMER_KEY && env.X_CONSUMER_SECRET);
   console.log(`Neegy server on http://localhost:${PORT}`);
@@ -363,6 +389,9 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     console.log(`
 ${signal} -- shutting down`);
+    // Writes are coalesced on a short timer, so force any pending one out
+    // before exiting or the last match's results are lost.
+    flushNow();
     server.close(() => process.exit(0));
     // Do not hang forever on a wedged socket (WebSockets are long-lived by
     // design and will never close on their own).

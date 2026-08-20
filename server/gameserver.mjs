@@ -20,7 +20,7 @@ import { sessionPlayer } from "./store.mjs";
 import {
   rooms, createRoom, joinRoom, leaveRoom, listRooms, roomStateMessage,
   beginCountdown, startMatch, applyEntityStates, applyHit, checkMatchOver,
-  snapshot, sweepRooms, TICK_MS,
+  snapshot, sweepRooms, ensurePermanentRooms, TICK_MS,
 } from "./rooms.mjs";
 
 const clients = new Map(); // clientId -> client
@@ -82,7 +82,14 @@ function matchStateMessage(room, client) {
   };
 }
 
+let lastPermanentCheck = 0;
+
 export function attachGameServer(httpServer) {
+  // Stand up the always-on 1v1/3v3/5v5 servers before the first client can
+  // connect, so the browser list is never empty.
+  const permanentCount = ensurePermanentRooms();
+  console.log(`  servers:       ${permanentCount} always-on rooms (1v1 / 3v3 / 5v5)`);
+
   attachWebSocketServer(httpServer, {
     path: "/ws",
     onConnection(conn, req) {
@@ -176,6 +183,13 @@ export function attachGameServer(httpServer) {
       }
     }
     sweepRooms();
+    // Defensive only -- leaveRoom() keeps permanent rooms alive, so this is
+    // just a safety net. Throttled to ~10s because rescanning every room 15
+    // times a second to check for something that should never happen is waste.
+    if (Date.now() - lastPermanentCheck > 10000) {
+      lastPermanentCheck = Date.now();
+      ensurePermanentRooms();
+    }
   }, TICK_MS);
   timer.unref?.();
 }

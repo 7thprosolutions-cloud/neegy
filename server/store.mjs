@@ -77,8 +77,31 @@ const sessions = readJson(SESSIONS_FILE, {});
 // expire in minutes, so losing them on restart costs nothing.
 const pendingLogins = new Map();
 
-function savePlayers() { writeJson(PLAYERS_FILE, players); }
-function saveSessions() { writeJson(SESSIONS_FILE, sessions); }
+// Both files are rewritten in full, so doing it once per changed record is
+// wasteful: the end of a 5v5 match calls recordMatch ten times, which used to
+// mean ten complete rewrites of the player file for a single event. Coalesce
+// instead -- mark dirty, flush on a short timer. Data still lands within a
+// second, and a burst of N changes costs one write instead of N.
+const FLUSH_DELAY_MS = 250;
+let playersDirty = false;
+let sessionsDirty = false;
+let flushTimer = null;
+
+function scheduleFlush() {
+  if (flushTimer) return;
+  flushTimer = setTimeout(flushNow, FLUSH_DELAY_MS);
+  flushTimer.unref?.();
+}
+
+export function flushNow() {
+  clearTimeout(flushTimer);
+  flushTimer = null;
+  if (playersDirty) { playersDirty = false; writeJson(PLAYERS_FILE, players); }
+  if (sessionsDirty) { sessionsDirty = false; writeJson(SESSIONS_FILE, sessions); }
+}
+
+function savePlayers() { playersDirty = true; scheduleFlush(); }
+function saveSessions() { sessionsDirty = true; scheduleFlush(); }
 
 // ---------- players ----------
 
@@ -157,6 +180,21 @@ export function leaderboard(limit = 20) {
 }
 
 // ---------- sessions ----------
+
+// Expired sessions were previously only dropped when that exact session was
+// looked up again -- which never happens for an abandoned one. At a thousand
+// logins a day against a 30-day TTL that is tens of thousands of dead records
+// accumulating in a file that gets rewritten on every single login. Sweep them
+// on a timer instead.
+export function sweepSessions() {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  let removed = 0;
+  for (const [sid, s] of Object.entries(sessions)) {
+    if (s.createdAt < cutoff) { delete sessions[sid]; removed++; }
+  }
+  if (removed) saveSessions();
+  return removed;
+}
 
 export function createSession(playerId) {
   const sid = crypto.randomBytes(32).toString("hex");

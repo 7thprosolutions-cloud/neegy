@@ -1,9 +1,9 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=17";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=17";
-import * as net from "/arena3d/net.js?v=17";
+} from "/arena3d/profile.js?v=19";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=19";
+import * as net from "/arena3d/net.js?v=19";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -316,30 +316,56 @@ function joinLobby(server) {
 
 // ---------- multiplayer bootstrap ----------
 //
-// Connect, then decide once whether this page is running online (real rooms
-// shared with other players) or offline (the original local mock lobby). Every
-// branch above reads `online`; nothing else needs to know how we got here.
-(async () => {
-  net.connect();
-  online = await net.ready();
+// `online` decides between real rooms shared with other players and the local
+// offline lobby. Crucially this is NOT a one-shot decision: the first
+// connection can take longer than the initial wait on a cold load (DNS + TLS,
+// or a server still warming after a deploy), and a page that latched OFFLINE
+// at that moment would keep telling players the game has no servers while the
+// socket was in fact connected. So we take a first reading, then keep
+// listening and upgrade the moment the socket actually opens.
 
+function updateNetBadge() {
   const heading = document.querySelector(".dash-panel-head h2");
-  if (heading && !heading.querySelector(".dash-net-badge")) {
-    const badge = document.createElement("span");
-    badge.className = "dash-net-badge " + (online ? "online" : "offline");
-    badge.textContent = online ? "LIVE" : "OFFLINE";
-    badge.title = online
-      ? "Connected — these are real servers other players can join."
-      : "No game server reachable — servers and opponents here are local placeholders.";
+  if (!heading) return;
+  let badge = heading.querySelector(".dash-net-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "dash-net-badge";
     heading.appendChild(badge);
   }
-  if (!online) return;
+  badge.classList.toggle("online", online);
+  badge.classList.toggle("offline", !online);
+  badge.textContent = online ? "LIVE" : "OFFLINE";
+  badge.title = online
+    ? "Connected — these are real servers other players can join."
+    : "No game server reachable — servers and opponents here are local placeholders.";
+}
 
-  // Guests announce the name they typed; signed-in players are already known
-  // to the server from the session cookie and cannot rename themselves.
-  if (!account && profile.name) net.setName(profile.name);
+function setOnline(next) {
+  if (online === next) return;
+  online = next;
+  updateNetBadge();
+  if (online) {
+    // Guests announce the name they typed; signed-in players are already known
+    // to the server from the session cookie and cannot rename themselves.
+    if (!account && profile.name) net.setName(profile.name);
+    net.listRooms();
+  }
   renderServers();
+}
+
+(async () => {
+  net.connect();
+  // Generous: this only decides how long to wait before showing the offline
+  // lobby, and going online later is handled below, so a slow first connect
+  // costs a moment of placeholder content rather than the whole feature.
+  const first = await net.ready(8000);
+  online = !first; // force setOnline() to run its side effects
+  setOnline(first);
 })();
+
+// The socket can open (or drop and come back) long after that first reading.
+net.on("status", (state) => setOnline(state === "open"));
 
 net.on("welcome", (msg) => {
   myClientId = msg.you.id;
@@ -374,7 +400,7 @@ net.on("start", (msg) => {
 });
 
 net.on("status", (state) => {
-  if (state === "closed" && online) lobbyStatus.textContent = "Connection lost — reconnecting…";
+  if (state === "closed") lobbyStatus.textContent = "Connection lost — reconnecting…";
 });
 
 // Keep the guest name the server knows in sync with the name box.

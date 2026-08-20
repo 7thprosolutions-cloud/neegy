@@ -16,6 +16,12 @@ let status = "idle"; // idle | connecting | open | unavailable | closed
 let reconnectDelay = 500;
 let reconnectTimer = null;
 let intentionalClose = false;
+// "unavailable" is meant to mean "there is no backend at this origin" (a plain
+// static host), which is why it stops retrying. A connection that has worked
+// before must never end up there: the server restarting -- which happens on
+// every deploy -- would otherwise strand every connected player permanently,
+// with the page still claiming the game has no servers long after it recovered.
+let everConnected = false;
 // Messages sent before the socket finishes opening are held rather than lost.
 let queue = [];
 
@@ -77,6 +83,7 @@ export function connect() {
 
   ws.onopen = () => {
     status = "open";
+    everConnected = true;
     reconnectDelay = 500;
     // Always first: identifies this browser tab so the server can re-bind us
     // to the room/team/entities we already had, rather than treating a page
@@ -99,9 +106,10 @@ export function connect() {
   };
 
   ws.onerror = () => {
-    // Fired before onclose when the connection never established at all --
-    // on a static host that is the "there is no backend" signal.
-    if (status === "connecting") {
+    // Fired before onclose when the connection never established. That is the
+    // "no backend here" signal ONLY if we have never been connected; once a
+    // socket has worked, a failure is a blip and must stay retryable.
+    if (status === "connecting" && !everConnected) {
       status = "unavailable";
       emit("status", status);
     }
@@ -111,9 +119,9 @@ export function connect() {
     socket = null;
     // "unavailable" means the socket never established -- there is no backend
     // here, so stay quiet rather than retrying forever on a static host.
-    const neverConnected = status === "unavailable";
-    if (intentionalClose || neverConnected) {
-      if (!neverConnected) status = "closed";
+    const noBackendHere = status === "unavailable" && !everConnected;
+    if (intentionalClose || noBackendHere) {
+      if (!noBackendHere) status = "closed";
       emit("status", status);
       return;
     }

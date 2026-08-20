@@ -13,7 +13,7 @@
 //     by interpolating toward the last snapshot the server sent.
 //   - Health, damage, deaths and the end of the match are decided by the
 //     server. A local bullet hit reports a claim and waits to be told.
-import * as net from "/arena3d/net.js?v=17";
+import * as net from "/arena3d/net.js?v=19";
 
 export const mp = {
   active: false,
@@ -41,7 +41,11 @@ export function isMultiplayerRequested() {
 export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot, onError } = {}) {
   if (!ROOM_ID) return null;
   net.connect();
-  const online = await net.ready(4000);
+  // Same reasoning as the dashboard: a cold connection (DNS + TLS, or a server
+  // still warming after a deploy) can take several seconds, and giving up too
+  // early drops the player into an offline bot match when a real one was
+  // waiting for them. Losing the match is far worse than waiting a moment.
+  const online = await net.ready(8000);
   if (!online) return null;
 
   net.on("snap", (msg) => {

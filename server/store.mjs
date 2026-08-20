@@ -33,11 +33,41 @@ function readJson(file, fallback) {
 
 // Write to a temp file then rename: a crash mid-write leaves the previous
 // good file intact instead of a truncated one.
+//
+// Never throws. A misconfigured or read-only DATA_DIR must not take the game
+// down or break sign-in -- the process keeps serving from memory and says so
+// once, loudly, rather than failing every request that touches a record.
+let writeFailureReported = false;
 function writeJson(file, value) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
-  fs.renameSync(tmp, file);
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = file + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
+    fs.renameSync(tmp, file);
+    return true;
+  } catch (err) {
+    if (!writeFailureReported) {
+      writeFailureReported = true;
+      console.error(`[store] CANNOT WRITE to ${path.dirname(file)} (${err.code || err.message})`);
+      console.error("[store] Players and sessions still work but are lost on restart.");
+      console.error("[store] Set DATA_DIR to a writable directory that survives deploys.");
+    }
+    return false;
+  }
+}
+
+// Probed at startup so a bad DATA_DIR shows up immediately, rather than at the
+// moment the first real player tries to sign in.
+function canWrite(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, ".write-probe");
+    fs.writeFileSync(probe, "ok");
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const players = readJson(PLAYERS_FILE, {});
@@ -59,6 +89,11 @@ export function describeStorage() {
   return {
     dir: DATA_DIR,
     configured: Boolean(process.env.DATA_DIR),
+    writable: canWrite(DATA_DIR),
+    // Managed hosts commonly deploy into a fresh per-release directory, so a
+    // data path inside the build tree is wiped on every push. Detect that
+    // shape and warn, rather than silently losing every player record.
+    ephemeral: /[\\/](hbuilds|releases|versions)[\\/]/i.test(DATA_DIR),
     players: Object.keys(players).length,
     sessions: Object.keys(sessions).length,
   };

@@ -345,9 +345,15 @@ server.listen(PORT, HOST, () => {
   const store = describeStorage();
   console.log(`  player store:  ${store.players} players, ${store.sessions} sessions`);
   console.log(`                 ${store.dir}`);
-  if (!store.configured) {
-    console.log("                 (DATA_DIR not set -- on a host with an ephemeral");
-    console.log("                  filesystem this is wiped on every redeploy)");
+  if (!store.writable) {
+    console.log("  WARNING:       that directory is NOT WRITABLE -- records will be lost on restart");
+  } else if (store.ephemeral) {
+    console.log("  WARNING:       that path is inside the per-deploy build directory, so every");
+    console.log("                 player record is WIPED on each redeploy. Set DATA_DIR to a");
+    console.log("                 path outside it, e.g. one level above 'hbuilds'.");
+  } else if (!store.configured) {
+    console.log("                 (DATA_DIR not set -- fine locally; on a managed host set it");
+    console.log("                  to a directory that survives deploys)");
   }
 });
 

@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena Dashboard</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=28" />
-<link rel="stylesheet" href="/arena3d/dashboard.css?v=28" />
+<link rel="stylesheet" href="/arena3d/style.css?v=29" />
+<link rel="stylesheet" href="/arena3d/dashboard.css?v=29" />
 </head>
 <body class="dash-body">
 
@@ -139,8 +139,8 @@
           </div>
           <p class="dash-note" id="payNote">Checkout opens once SOL payments are switched on.</p>
           <p class="dash-note dash-testnet-warning" id="testnetWarning" hidden>
-            <strong>TEST MODE</strong> &mdash; this server is pointed at Solana devnet.
-            Payments here use valueless test SOL, not real money.
+            <strong>TEST MODE</strong> &mdash; this server is pointed at Solana devnet, so
+            purchases use valueless test SOL. Pay from a browser wallet switched to Devnet.
           </p>
         </section>
       </aside>
@@ -197,7 +197,9 @@
       <button class="dash-btn-small dash-btn-ghost" id="payCopyBtn">COPY REQUEST</button>
       <div class="dash-pay-status" id="payStatus">Waiting for payment...</div>
       <p class="dash-note dash-testnet-warning" id="payTestnet" hidden>
-        <strong>TEST MODE (devnet)</strong> &mdash; valueless test SOL, not real money.
+        <strong>TEST MODE (devnet)</strong> &mdash; this pays with valueless test SOL.
+        Set your wallet to <strong>Devnet</strong> first. Paying from a mainnet
+        wallet will simply fail here, so no real SOL can be spent by mistake.
       </p>
       <div class="dash-lobby-actions">
         <button id="payCloseBtn" class="dash-btn-small dash-btn-ghost">CLOSE</button>
@@ -221,7 +223,7 @@
     </div>
   </div>
 
-  <script type="module" src="/arena3d/dashboard.js?v=28"></script>
+  <script type="module" src="/arena3d/dashboard.js?v=29"></script>
   <script src="/beta.js?v=1"></script>
 </body>
 </html>

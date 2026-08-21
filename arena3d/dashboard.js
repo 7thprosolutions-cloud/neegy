@@ -1,10 +1,10 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=28";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=28";
-import * as net from "/arena3d/net.js?v=28";
-import { qrSvg } from "/arena3d/qr.js?v=28";
+} from "/arena3d/profile.js?v=29";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=29";
+import * as net from "/arena3d/net.js?v=29";
+import { qrSvg } from "/arena3d/qr.js?v=29";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -318,19 +318,47 @@ async function beginPurchase(product) {
 
   activeInvoice = invoice;
   payLink.href = invoice.url;
-  try {
-    payQr.innerHTML = qrSvg(invoice.url);
-  } catch (err) {
-    // A QR that cannot be drawn is not a reason to block the payment -- the
-    // link below it carries exactly the same request.
+
+  // A `solana:` request carries no cluster. On devnet that is a way to lose
+  // real money: a wallet set to mainnet would read this QR, build a perfectly
+  // valid MAINNET transfer, and send actual SOL to the treasury -- which this
+  // server, watching devnet, would never see. The payer would be out real
+  // funds and get nothing.
+  //
+  // The wallet button has no such hole, because the transaction it signs is
+  // built on a devnet blockhash: a mainnet wallet cannot execute it at all, it
+  // just fails. So while we are not on mainnet, that is the only route
+  // offered, and the QR stays off the screen entirely rather than relying on
+  // anyone reading a warning.
+  const testMoney = !payConfig.live;
+  payQr.hidden = testMoney;
+  payLink.hidden = testMoney;
+  payCopyBtn.hidden = testMoney;
+  document.querySelector(".dash-pay-hint").hidden = testMoney;
+
+  if (!testMoney) {
+    try {
+      payQr.innerHTML = qrSvg(invoice.url);
+    } catch (err) {
+      // A QR that cannot be drawn is not a reason to block the payment -- the
+      // link below it carries exactly the same request.
+      payQr.innerHTML = "";
+      console.warn("qr:", err.message);
+    }
+  } else {
     payQr.innerHTML = "";
-    console.warn("qr:", err.message);
   }
   walletSubmitted = false;
   const provider = browserWallet();
   payWalletBtn.hidden = !provider;
   payWalletBtn.disabled = false;
   payWalletBtn.textContent = provider?.isPhantom ? "PAY WITH PHANTOM" : "PAY WITH WALLET";
+
+  if (testMoney && !provider) {
+    payStatusEl.textContent = "Test mode needs a browser wallet set to devnet.";
+    payStatusEl.className = "dash-pay-status failed";
+    return;
+  }
 
   payStatusEl.textContent = "Waiting for payment...";
   pollPayment();

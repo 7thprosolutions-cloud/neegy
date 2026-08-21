@@ -112,10 +112,63 @@ stops firing on its own, and there is nothing to undo. The X callback
 `https://neegy.life/auth/x/callback` is already registered, so sign-in works
 the moment it switches.
 
+### How players pay TODAY: QR only
+
+The Phantom button is **switched off** behind `WALLET_BUTTON_ENABLED` in
+`dashboard.js`. Not because it is broken -- it works, and the transaction it
+builds is correct -- but because Phantom's domain reputation scanner blocks
+connections from neegy.life outright: *"This dApp could be malicious"*, shown
+before it ever looks at the transaction.
+
+That is a false positive earned by being a young domain that asks for SOL, and
+it needs a **delisting appeal**, not a code change. Phantom's blocklist is on
+GitHub (`phantom/blocklist`); the *Learn more* link on the warning names the
+scanning provider. Flip the constant back to `true` once it clears -- the whole
+wallet flow is still there and still tested.
+
+The `solana:` deep-link button is gone for a different reason: desktop browsers
+usually have no handler registered for that scheme, so clicking it waits for an
+app that never opens and reads as the dialog hanging. The QR carries the
+identical request.
+
+**Two bugs are fixed under here and both are easy to reintroduce:**
+
+1. Phantom wants a serialized **TRANSACTION**, not a bare message. Handed a
+   message it reads the leading 1 as "one signature follows", eats 64 bytes,
+   then runs off the end -- *"Reached end of buffer unexpectedly"*. See
+   `buildTransferTransactionBase58`.
+2. Setting `display: block` on the buttons in the pay card **broke the HTML
+   `hidden` attribute**, because an author display rule beats the UA
+   stylesheet's `[hidden] { display: none }`. That silently disabled the guard
+   that hides the `solana:` link off mainnet -- where a mainnet wallet reading
+   a devnet request sends real money the server never sees. `[hidden]` is now
+   forced with `!important`. **`hidden: true` in the DOM and "not visible on
+   screen" are different claims; check the second one with a screenshot.**
+
+### The 503 that ate an evening: shutdown held the port
+
+Symptom: every request 503s while the runtime logs show a *completely clean
+startup* seconds earlier. It looks like a crash that is not there.
+
+Cause: the SIGTERM handler called `server.close()`, which waits for every
+connection to end -- and this process holds **WebSockets**, which never end on
+their own. The platform sends SIGTERM and starts the replacement ~200ms later;
+the new instance found port 3000 still held, exited with EADDRINUSE, and
+nothing was left serving.
+
+Fixed twice over: shutdown destroys live sockets and hard-exits after 400ms
+(**not** unref'd), and EADDRINUSE now retries for a few seconds instead of
+exiting, because the previous instance letting go momentarily is the normal
+case on a deploy. Two clean deploys in a row confirmed it.
+
+**Also: do not push twice within a few minutes.** Overlapping auto-deploys
+SIGTERM each other mid-boot and leave orphaned processes -- which is what
+"ten SIGTERMs in one millisecond" was: several instances sharing one log.
+
 ### LIVE ON MAINNET. Real SOL. The env vars that must exist
 
     PORT=3000
-    TREASURY_ADDRESS=6ocgsbQ463HtiYhT2M5Bp15XbsNA2H2Qh4TYhSgFFmfe
+    TREASURY_ADDRESS=2HEsBXsyrb2roxcUwPPKNW9eajm7mL6eKNCWU1XbrCnn
     ADMIN_TOKEN=<long random string>
     SOLANA_CLUSTER=mainnet-beta
     DATA_DIR=/home/u932119236/domains/chocolate-gull-388433.hostingersite.com/neegy-data
@@ -168,7 +221,7 @@ One record was lost when neegy.life was attached to the Web App (2 players ->
 
 ### Historical: what the setup looked like before it went live
 
-    TREASURY_ADDRESS=6ocgsbQ463HtiYhT2M5Bp15XbsNA2H2Qh4TYhSgFFmfe
+    TREASURY_ADDRESS=2HEsBXsyrb2roxcUwPPKNW9eajm7mL6eKNCWU1XbrCnn
     ADMIN_TOKEN=<any long random string>
 
 The first switches purchasing on (devnet — test SOL). `ADMIN_TOKEN` is what
@@ -434,6 +487,17 @@ happy with it, because the decoder was *told* the version rather than reading
 it off the symbol. A self-consistent encoder/decoder pair will agree on their
 own mistakes -- keep the external check.
 
+**STILL NOT PROVEN, as of the mainnet launch: a funded transfer actually
+landing and being credited.** Everything up to the wallet is verified; no real
+SOL has moved. When the first purchase happens, watch the runtime logs for
+`[pay] credited ...`. If the SOL leaves and that line does not appear, the
+money is safe in the treasury and `POST /api/admin/grant` makes the buyer whole
+while it is diagnosed. The one QR-specific risk: the flow depends on the wallet
+including the invoice `reference` in the transaction. Solana Pay wallets do --
+it is the standard -- but a wallet that omitted it would pay without ever being
+matched to a buyer.
+
+(Historic, from the devnet stage:)
 **NOT PROVEN: a funded transfer actually landing and being credited.** The
 public devnet faucet was exhausted for this IP, so no wallet could be funded.
 What is proven is that devnet accepts the transaction's signature and structure

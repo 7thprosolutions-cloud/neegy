@@ -1,9 +1,9 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=20";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=20";
-import * as net from "/arena3d/net.js?v=20";
+} from "/arena3d/profile.js?v=21";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=21";
+import * as net from "/arena3d/net.js?v=21";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");

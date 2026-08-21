@@ -278,3 +278,23 @@ html, body {
   font-size: 11px;
   color: #fff8e680;
 }
+
+/* Shown while a match is running but the mouse is not captured, so the player
+   is told why looking around does nothing instead of assuming it is broken. */
+.lock-hint {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  color: #0a0908;
+  background: rgba(232, 178, 60, 0.94);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.lock-hint.hidden { display: none; }

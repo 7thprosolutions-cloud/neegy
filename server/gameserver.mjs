@@ -20,8 +20,9 @@ import { sessionPlayer } from "./store.mjs";
 import {
   rooms, createRoom, joinRoom, leaveRoom, listRooms, roomStateMessage,
   beginCountdown, startMatch, applyEntityStates, applyHit, checkMatchOver,
-  snapshot, sweepRooms, ensurePermanentRooms, TICK_MS,
+  snapshot, sweepRooms, ensurePermanentRooms, reviveOwnEntity, TICK_MS,
 } from "./rooms.mjs";
+import { entitlementsOf } from "./store.mjs";
 
 const clients = new Map(); // clientId -> client
 const clientsByTab = new Map(); // tabId -> client
@@ -200,6 +201,7 @@ function sendWelcome(client) {
     you: {
       id: client.id, name: client.displayName,
       handle: client.handle, avatar: client.avatar, signedIn: client.signedIn,
+      entitlements: client.playerId ? entitlementsOf(client.playerId) : { extraLives: 0, privateGames: 0 },
     },
     rooms: listRooms(),
   });
@@ -280,7 +282,12 @@ function handle(client, msg, conn) {
       return send(client, { t: "rooms", rooms: listRooms() });
 
     case "create": {
-      const room = createRoom({ name: msg.name, mode: msg.mode, hostClient: client });
+      // A password turns this into a private server: listed by name, but only
+      // joinable by someone who has the password.
+      const room = createRoom({
+        name: msg.name, mode: msg.mode, hostClient: client,
+        password: msg.password ? String(msg.password) : null,
+      });
       joinRoom(room, client);
       send(client, { t: "joined", roomId: room.id });
       return pushRoomState(room);
@@ -296,9 +303,21 @@ function handle(client, msg, conn) {
         if (room.state === "playing") send(client, matchStateMessage(room, client));
         return;
       }
-      joinRoom(room, client);
+      joinRoom(room, client, msg.password);
       send(client, { t: "joined", roomId: room.id });
       return pushRoomState(room);
+    }
+
+    case "revive": {
+      const room = client.room;
+      if (!room) return fail(client, "You are not in a match.");
+      const result = reviveOwnEntity(room, client);
+      if (result.error) return fail(client, result.error);
+      // Everyone needs to know, or the revived player would be walking around
+      // while other screens still show them dead and unshootable.
+      broadcast(room, { t: "revived", id: result.entityId, hp: 100 });
+      send(client, { t: "entitlements", entitlements: entitlementsOf(client.playerId) });
+      return;
     }
 
     case "leave": {

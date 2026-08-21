@@ -5,6 +5,7 @@
 //
 // Replaces `npx serve` for local work. Run: node server/server.mjs
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -13,7 +14,7 @@ import { beginLogin, completeLogin } from "./xauth.mjs";
 import {
   upsertPlayer, recordMatch, leaderboard,
   createSession, sessionPlayer, destroySession, describeStorage,
-  sweepSessions, flushNow,
+  sweepSessions, flushNow, grantEntitlement, ENTITLEMENTS, findPlayerByHandle,
 } from "./store.mjs";
 import { attachGameServer } from "./gameserver.mjs";
 
@@ -102,7 +103,11 @@ function currentPlayer(req) {
 function publicPlayer(p) {
   if (!p) return null;
   const { id, handle, name, avatar, kills, deaths, xp, gamesPlayed } = p;
-  return { id, handle, name, avatar, kills, deaths, xp, gamesPlayed };
+  return {
+    id, handle, name, avatar, kills, deaths, xp, gamesPlayed,
+    extraLives: p.extraLives || 0,
+    privateGames: p.privateGames || 0,
+  };
 }
 
 function escapeHtml(s) {
@@ -211,6 +216,41 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true }, {
       "Set-Cookie": COOKIE + "=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
     });
+  }
+
+  // Grant entitlements without a payment. This is how the features get tested
+  // and how a botched purchase gets made right by hand -- on-chain payments
+  // cannot be reversed, so there has to be a way to credit someone directly.
+  //
+  // Refuses to run unless ADMIN_TOKEN is set, so an unconfigured deployment
+  // cannot be handed free upgrades by anyone who guesses the path.
+  if (p === "/api/admin/grant" && req.method === "POST") {
+    const expected = env.ADMIN_TOKEN;
+    if (!expected) return sendJson(res, 404, { error: "not enabled" });
+    const supplied = req.headers["x-admin-token"] || "";
+    const a = Buffer.from(String(supplied));
+    const b = Buffer.from(String(expected));
+    const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!ok) return sendJson(res, 403, { error: "bad admin token" });
+
+    let body;
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: "invalid JSON" });
+    }
+    const { handle, kind, quantity } = body || {};
+    if (!ENTITLEMENTS[kind]) {
+      return sendJson(res, 400, { error: "kind must be one of: " + Object.keys(ENTITLEMENTS).join(", ") });
+    }
+    const target = findPlayerByHandle(handle);
+    if (!target) {
+      return sendJson(res, 404, { error: `no player with handle "${handle}" -- they must sign in with X once first` });
+    }
+    const qty = quantity === undefined ? ENTITLEMENTS[kind].perPurchase : quantity;
+    const updated = grantEntitlement(target.id, kind, qty);
+    console.log(`[admin] granted ${qty} ${kind} to @${target.handle}`);
+    return sendJson(res, 200, { player: publicPlayer(updated) });
   }
 
   if (p === "/api/leaderboard" && req.method === "GET") {

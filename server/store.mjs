@@ -143,6 +143,11 @@ export function upsertPlayer({ xUserId, handle, name, avatar }) {
     deaths: existing?.deaths ?? 0,
     xp: existing?.xp ?? 0,
     gamesPlayed: existing?.gamesPlayed ?? 0,
+    // Paid entitlements. Balances, not flags: one purchase adds to whatever is
+    // already there, and spending decrements. `??` not `||` so a legitimately
+    // zero balance is never silently reset to a default.
+    extraLives: existing?.extraLives ?? 0,
+    privateGames: existing?.privateGames ?? 0,
     createdAt: existing?.createdAt ?? now,
     lastSeen: now,
   };
@@ -168,6 +173,57 @@ export function recordMatch(id, { kills = 0, deaths = 0, xp = 0 }) {
   p.lastSeen = Date.now();
   savePlayers();
   return p;
+}
+
+// ---------- entitlements ----------
+
+export const ENTITLEMENTS = {
+  extraLives: { field: "extraLives", perPurchase: 10, priceSol: 0.1, label: "Extra lives" },
+  privateGames: { field: "privateGames", perPurchase: 5, priceSol: 0.1, label: "Private server games" },
+};
+
+// Adds to a balance. Returns the new player record, or null if unknown player.
+// `quantity` is passed explicitly rather than read from the table so a partial
+// or promotional grant is possible without inventing a second code path.
+export function grantEntitlement(playerId, kind, quantity) {
+  const spec = ENTITLEMENTS[kind];
+  const p = players[playerId];
+  if (!spec || !p) return null;
+  const n = Math.max(0, Math.floor(Number(quantity) || 0));
+  if (!n) return p;
+  p[spec.field] = (p[spec.field] || 0) + n;
+  savePlayers();
+  return p;
+}
+
+// Spends exactly one unit, atomically. Returns the remaining balance, or null
+// if there was nothing to spend -- callers must treat null as "refuse the
+// action", never as zero, or an empty balance would grant a free use.
+export function spendEntitlement(playerId, kind) {
+  const spec = ENTITLEMENTS[kind];
+  const p = players[playerId];
+  if (!spec || !p) return null;
+  const balance = p[spec.field] || 0;
+  if (balance <= 0) return null;
+  p[spec.field] = balance - 1;
+  savePlayers();
+  return p[spec.field];
+}
+
+// Handles are what a human actually knows, and X allows renames, so match
+// case-insensitively rather than assuming exact capitalisation.
+export function findPlayerByHandle(handle) {
+  const want = String(handle || "").replace(/^@/, "").toLowerCase();
+  if (!want) return null;
+  return Object.values(players).find((p) => (p.handle || "").toLowerCase() === want) || null;
+}
+
+export function entitlementsOf(playerId) {
+  const p = players[playerId];
+  return {
+    extraLives: p?.extraLives || 0,
+    privateGames: p?.privateGames || 0,
+  };
 }
 
 export function leaderboard(limit = 20) {

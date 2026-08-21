@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=20";
-import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=20";
-import { submitMatchResult } from "/arena3d/account.js?v=20";
-import * as MP from "/arena3d/mp.js?v=20";
-import { mp } from "/arena3d/mp.js?v=20";
+import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=21";
+import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=21";
+import { submitMatchResult } from "/arena3d/account.js?v=21";
+import * as MP from "/arena3d/mp.js?v=21";
+import { mp } from "/arena3d/mp.js?v=21";
 
 // ---------- DOM ----------
 const canvas = document.getElementById("game");
@@ -1410,8 +1410,29 @@ window.addEventListener("blur", () => {
 });
 canvas.addEventListener("mousedown", () => (mouseDown = true));
 window.addEventListener("mouseup", () => (mouseDown = false));
+const lockHint = document.getElementById("lockHint");
+
+function updateLockHint() {
+  if (!lockHint) return;
+  lockHint.classList.toggle("hidden", pointerLocked || state !== "playing");
+}
+
 document.addEventListener("pointerlockchange", () => {
   pointerLocked = document.pointerLockElement === canvas;
+  updateLockHint();
+});
+
+// Capture the mouse on click, every time it is not already captured.
+//
+// Requesting it once inside startGame() is not enough, and that is what broke
+// looking around entirely: arriving from the dashboard starts the match
+// automatically, with no user gesture for the browser to attach the request
+// to, and startGame() is async besides -- so by the time it asked, any user
+// activation from a click had already been consumed by the awaits. A click
+// handler is the one place the gesture is guaranteed to be live.
+canvas.addEventListener("click", () => {
+  if (state !== "playing" || pointerLocked) return;
+  canvas.requestPointerLock && canvas.requestPointerLock();
 });
 window.addEventListener("mousemove", (e) => {
   if (!pointerLocked) return;
@@ -1913,6 +1934,7 @@ function showOverlay(title, subtitle, buttonText, showDashboardBtn) {
   buildHint.classList.add("hidden");
   spectatorNote.classList.add("hidden");
   debugReadout.classList.add("hidden");
+  lockHint && lockHint.classList.add("hidden");
   crosshair.style.display = "none";
   document.getElementById("startBtn").addEventListener("click", startGame);
   const dashBtn = document.getElementById("dashboardBtn");
@@ -2066,7 +2088,10 @@ async function startGame() {
   debugReadout.classList.remove("hidden");
   crosshair.style.display = "block";
   initAudio();
+  // May well be refused (no live user gesture after the awaits above); the
+  // canvas click handler is what actually gets us locked.
   canvas.requestPointerLock && canvas.requestPointerLock();
+  updateLockHint();
 }
 
 startBtn.addEventListener("click", startGame);

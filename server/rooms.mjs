@@ -13,7 +13,7 @@
 // humans before it could ever be played or tested.
 import crypto from "node:crypto";
 import { MODES } from "./modes.mjs";
-import { recordMatch } from "./store.mjs";
+import { recordMatch, spendEntitlement } from "./store.mjs";
 
 const TICK_MS = 66; // ~15 snapshots/sec -- plenty for this pace, easy on bandwidth
 const LOBBY_COUNTDOWN_MS = 3000;
@@ -37,6 +37,24 @@ function id(prefix) {
 
 function now() {
   return Date.now();
+}
+
+// Room passwords are hashed, never stored or transmitted in clear. They are
+// low-stakes (a door code shared with friends, not an account credential), but
+// they still travel over the wire and sit in a file, so treat them properly:
+// per-room salt, and a timing-safe comparison so a wrong guess cannot be
+// distinguished from a near-miss by how long the check took.
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  const hash = crypto.scryptSync(String(password), salt, 32).toString("hex");
+  return { salt, hash };
+}
+
+function passwordMatches(stored, attempt) {
+  if (!stored) return true; // public room
+  const { hash } = hashPassword(attempt ?? "", stored.salt);
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(stored.hash, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 // ---------- room shape ----------
@@ -69,12 +87,22 @@ export function ensurePermanentRooms() {
   return [...rooms.values()].filter((r) => r.permanent).length;
 }
 
-export function createRoom({ name, mode, hostClient, permanent = false }) {
+export function createRoom({ name, mode, hostClient, permanent = false, password = null }) {
   if (!permanent && rooms.size >= MAX_ROOMS) throw new Error("Too many servers open right now.");
   if (!MODES[mode]) throw new Error("Unknown mode: " + mode);
+  const trimmed = typeof password === "string" ? password.trim() : "";
+  if (password !== null && password !== undefined && trimmed.length < 3) {
+    throw new Error("A private server needs a password of at least 3 characters.");
+  }
   const room = {
     id: id("room"),
     permanent,
+    // Private rooms are listed but not joinable without the password, so
+    // friends can find the server by name instead of swapping room ids.
+    isPrivate: Boolean(trimmed),
+    password: trimmed ? hashPassword(trimmed) : null,
+    // Whose private-game credits this room spends when a match starts.
+    ownerPlayerId: hostClient?.playerId || null,
     name: String(name || "").trim().slice(0, 24) || `${hostClient.displayName}'s Server`,
     mode,
     teamSize: MODES[mode].teamSize,
@@ -87,6 +115,7 @@ export function createRoom({ name, mode, hostClient, permanent = false }) {
     createdAt: now(),
     countdownEndsAt: 0,
     lastHitAt: new Map(), // clientId -> ms, cheap rate limit on damage claims
+    revived: new Set(), // clientIds that already spent an extra life this match
   };
   rooms.set(room.id, room);
   return room;
@@ -99,6 +128,8 @@ export function roomSummary(room) {
     mode: room.mode,
     hostName: room.clients.get(room.hostId)?.displayName || (room.permanent ? "open" : "—"),
     permanent: Boolean(room.permanent),
+    // Only ever the flag -- the hash and salt stay server-side.
+    isPrivate: Boolean(room.isPrivate),
     players: room.clients.size,
     capacity: room.teamSize * 2,
     state: room.state,
@@ -116,9 +147,13 @@ function pickTeam(room) {
   return blue <= red ? TEAM_BLUE : TEAM_RED;
 }
 
-export function joinRoom(room, client) {
+export function joinRoom(room, client, password) {
   if (room.state === "playing") throw new Error("That match has already started.");
   if (room.clients.size >= room.teamSize * 2) throw new Error("That server is full.");
+  // The creator is already inside, so this only gates everyone else.
+  if (room.isPrivate && !room.clients.has(client.id) && !passwordMatches(room.password, password)) {
+    throw new Error("Wrong password for that private server.");
+  }
   if (client.room && client.room !== room) leaveRoom(client);
 
   client.room = room;
@@ -199,6 +234,18 @@ export function canStart(room) {
 // startMatch() hands the leftover slots to the host to simulate as bots.
 export function beginCountdown(room) {
   if (!canStart(room)) return false;
+  // A private match costs the room owner one of their private-game credits.
+  // Charged here, at the start of the countdown, rather than at room creation:
+  // a room that is never played should not cost anything, and the owner may
+  // run several matches from one room as long as they have credits left.
+  if (room.isPrivate) {
+    if (!room.ownerPlayerId) {
+      throw new Error("Private servers need the owner signed in with X.");
+    }
+    if (spendEntitlement(room.ownerPlayerId, "privateGames") === null) {
+      throw new Error("No private games left. Top up in Upgrades to keep playing here.");
+    }
+  }
   room.state = "countdown";
   room.countdownEndsAt = now() + LOBBY_COUNTDOWN_MS;
   return true;
@@ -207,6 +254,7 @@ export function beginCountdown(room) {
 export function startMatch(room) {
   room.state = "playing";
   room.entities.clear();
+  room.revived.clear(); // extra lives are one per match, so reset the ledger
   room.startedAt = now();
   for (const c of room.clients.values()) {
     room.scores.set(c.id, { kills: 0, deaths: 0 });
@@ -299,6 +347,30 @@ export function applyHit(room, client, { target, damage }) {
     }
   }
   return events;
+}
+
+// Spends one extra life to put a dead player back in the fight. Server-side
+// because health and death are: a client that could revive itself would be
+// able to do so for free and forever.
+//
+// One per match, enforced per client rather than per entity, so leaving and
+// rejoining cannot buy a second go on the same round.
+export function reviveOwnEntity(room, client) {
+  if (room.state !== "playing") return { error: "The match is not running." };
+  if (!client.playerId) return { error: "Sign in with X to use extra lives." };
+  if (room.revived.has(client.id)) return { error: "You have already used an extra life this match." };
+
+  const ent = [...room.entities.values()].find((e) => e.ownerId === client.id && !e.isBot);
+  if (!ent) return { error: "You are not in this match." };
+  if (ent.alive) return { error: "You are still alive." };
+
+  const remaining = spendEntitlement(client.playerId, "extraLives");
+  if (remaining === null) return { error: "No extra lives left." };
+
+  room.revived.add(client.id);
+  ent.hp = 100;
+  ent.alive = true;
+  return { entityId: ent.id, remaining };
 }
 
 export function checkMatchOver(room) {

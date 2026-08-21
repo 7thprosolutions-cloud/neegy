@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=21";
-import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=21";
-import { submitMatchResult } from "/arena3d/account.js?v=21";
-import * as MP from "/arena3d/mp.js?v=21";
-import { mp } from "/arena3d/mp.js?v=21";
+import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=22";
+import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=22";
+import { submitMatchResult } from "/arena3d/account.js?v=22";
+import * as MP from "/arena3d/mp.js?v=22";
+import { mp } from "/arena3d/mp.js?v=22";
 
 // ---------- DOM ----------
 const canvas = document.getElementById("game");
@@ -2010,10 +2010,30 @@ function clientIdOf(entityId) {
 }
 
 function applyNetShot(msg) {
-  // Cosmetic only -- the shot's damage travels separately, as a server-ruled
-  // hit claim. This just puts a muzzle flash where the other player fired.
   if (Number.isFinite(msg.x)) spawnMuzzleFlash(msg.x, msg.y, msg.z);
   playShootSfx(true);
+
+  // Spawn the actual round, not just the flash. Showing only a muzzle flash
+  // meant a player saw their own tracers and nothing else -- incoming fire was
+  // invisible, so there was no way to tell where you were being shot from.
+  const shooter = MP.fighterFor(msg.from);
+  if (!shooter || !Number.isFinite(msg.dx)) return;
+
+  const mesh = new THREE.Mesh(bulletGeo, bulletMat);
+  mesh.position.set(msg.x, msg.y, msg.z);
+  scene.add(mesh);
+  bullets.push({
+    x: msg.x, y: msg.y, z: msg.z,
+    dirX: msg.dx, dirY: msg.dy, dirZ: msg.dz,
+    // Visual only. Damage for this shot is the shooter's own hit claim, ruled
+    // by the server -- and because `owner` is a remote fighter, the collision
+    // loop will not file a second claim for it here. Both halves matter: drop
+    // either and every shot would be counted twice.
+    dmg: 0,
+    owner: shooter,
+    mesh,
+    life: 2.2,
+  });
 }
 
 // The server restarted (or otherwise forgot this room) while we were playing.

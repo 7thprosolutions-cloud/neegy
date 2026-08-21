@@ -202,12 +202,6 @@ async function handleApi(req, res, url) {
     return finishLogin(req, res, body.get("oauth_token"), (body.get("pin") || "").trim());
   }
 
-  // Short, memorable entry point for sharing the preview: /play drops straight
-  // into the server browser. Nicer to paste into a chat than the full path.
-  if (p === "/play" && req.method === "GET") {
-    return send(res, 302, "", { Location: "/arena3d/dashboard.html" });
-  }
-
   if (p === "/api/me" && req.method === "GET") {
     return sendJson(res, 200, { player: publicPlayer(currentPlayer(req)) });
   }
@@ -350,6 +344,13 @@ function serveStatic(req, res, url) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost:" + PORT}`);
   try {
+    // Short entry point for sharing: /play drops straight into the server
+    // browser. Must live here rather than in handleApi(), which is only
+    // consulted for /auth/* and /api/* paths.
+    if (url.pathname === "/play") {
+      return send(res, 302, "", { Location: "/arena3d/dashboard.html" });
+    }
+
     if (url.pathname.startsWith("/auth/") || url.pathname.startsWith("/api/")) {
       const handled = await handleApi(req, res, url);
       if (handled !== null) return;

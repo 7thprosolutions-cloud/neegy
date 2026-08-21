@@ -1,10 +1,10 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=29";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=29";
-import * as net from "/arena3d/net.js?v=29";
-import { qrSvg } from "/arena3d/qr.js?v=29";
+} from "/arena3d/profile.js?v=31";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=31";
+import * as net from "/arena3d/net.js?v=31";
+import { qrSvg } from "/arena3d/qr.js?v=31";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -99,6 +99,12 @@ let payPollTimer = null;
 // three-second poll overwrites "sent" with "waiting for payment", so the
 // moment after someone approves in Phantom reads as though nothing happened.
 let walletSubmitted = false;
+// Set when the wallet route has said something the player needs to read -- an
+// error, a timeout, a cancellation. The poll runs every three seconds and will
+// happily talk over it otherwise, so the one message explaining what went
+// wrong is replaced by a generic "waiting" a moment after it appears. Only a
+// settled payment outranks it.
+let payStatusLocked = false;
 // The generated code for the private room we are hosting, kept so the host can
 // bring it back up after dismissing the dialog.
 let hostedRoomCode = null;
@@ -349,6 +355,7 @@ async function beginPurchase(product) {
     payQr.innerHTML = "";
   }
   walletSubmitted = false;
+  payStatusLocked = false;
   const provider = browserWallet();
   payWalletBtn.hidden = !provider;
   payWalletBtn.disabled = false;
@@ -381,6 +388,7 @@ function pollPayment() {
       if (!res.ok) return;
       if (body.status === "paid") {
         clearInterval(payPollTimer);
+        payStatusLocked = false;
         payStatusEl.textContent = "Paid - credited to your account.";
         payStatusEl.className = "dash-pay-status paid";
         if (body.player) {
@@ -397,11 +405,14 @@ function pollPayment() {
       }
       if (body.status === "expired") {
         clearInterval(payPollTimer);
+        payStatusLocked = false;
         payStatusEl.textContent = "This request expired. Close and try again.";
         payStatusEl.className = "dash-pay-status failed";
         return;
       }
-      if (walletSubmitted) {
+      if (payStatusLocked) {
+        // Something is on screen that the player still needs to read.
+      } else if (walletSubmitted) {
         payStatusEl.textContent = `Sent - waiting for the network to confirm... (${elapsed}s)`;
       } else {
         payStatusEl.textContent = elapsed < 20
@@ -425,20 +436,45 @@ function browserWallet() {
   return provider?.isPhantom || provider?.isSolana ? provider : null;
 }
 
+// Nothing here should be able to sit on "loading" forever. A wallet popup that
+// never opens, an extension that never answers, a request that goes nowhere --
+// all of them look identical to the player unless each step says what it is
+// doing and gives up eventually.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
+  ]);
+}
+
 async function payWithWallet() {
   const provider = browserWallet();
   if (!provider || !activeInvoice) return;
   payWalletBtn.disabled = true;
-  try {
-    payStatusEl.className = "dash-pay-status";
-    payStatusEl.textContent = "Approve in your wallet...";
-    const { publicKey } = await provider.connect();
-    const payer = publicKey.toString();
+  payStatusLocked = false;
+  const step = (text, hold) => {
+    payStatusEl.textContent = text;
+    payStatusEl.className = hold ? "dash-pay-status failed" : "dash-pay-status";
+    // Progress messages are fine to be replaced; anything the player has to
+    // act on is not.
+    payStatusLocked = Boolean(hold);
+  };
 
-    // The server builds the transaction. It fixes the amount, the recipient
-    // and the reference, so this page cannot be talked into paying something
-    // other than the invoice it is displaying -- and the server still signs
-    // nothing; only the wallet can.
+  try {
+    step("Connecting to your wallet...");
+    const conn = await withTimeout(
+      provider.connect(),
+      45000,
+      "Your wallet did not respond. Open the Phantom extension - the approval may be waiting there."
+    );
+    const payer = (conn?.publicKey || provider.publicKey)?.toString();
+    if (!payer) throw new Error("Your wallet did not share an address.");
+
+    step("Preparing the transaction...");
+    // The server builds it. That fixes the amount, the recipient and the
+    // reference, so this page cannot be talked into paying something other
+    // than the invoice it is showing -- and the server still signs nothing;
+    // only the wallet can.
     const res = await fetch("/api/pay/tx", {
       method: "POST",
       credentials: "same-origin",
@@ -446,21 +482,24 @@ async function payWithWallet() {
       body: JSON.stringify({ reference: activeInvoice.reference, payer }),
     });
     const body = await res.json();
-    if (!res.ok) throw new Error(body.error || "could not prepare the transaction");
+    if (!res.ok) throw new Error(body.error || "Could not prepare the transaction.");
 
-    await provider.request({
-      method: "signAndSendTransaction",
-      params: { message: body.message },
-    });
+    step("Approve the payment in Phantom...");
+    await withTimeout(
+      provider.request({ method: "signAndSendTransaction", params: { message: body.message } }),
+      120000,
+      "No answer from the wallet. If Phantom did not open, click its icon in your toolbar."
+    );
+
     walletSubmitted = true;
-    payStatusEl.textContent = "Sent - waiting for the network to confirm...";
+    step("Sent - waiting for the network to confirm...");
   } catch (err) {
-    // Declining in the wallet is a normal thing to do, not an error worth
-    // shouting about.
+    // Declining is a normal thing to do, not an error worth shouting about.
     walletSubmitted = false;
-    const declined = /user rejected|declined|4001/i.test(err.message || "");
-    payStatusEl.textContent = declined ? "Cancelled in your wallet." : (err.message || "Wallet payment failed.");
-    payStatusEl.className = declined ? "dash-pay-status" : "dash-pay-status failed";
+    const message = err?.message || String(err);
+    const declined = /user rejected|declined|4001|cancell?ed/i.test(message);
+    step(declined ? "Cancelled in your wallet - nothing was charged." : message, true);
+    if (!declined) console.error("wallet payment failed:", err);
   } finally {
     payWalletBtn.disabled = false;
   }

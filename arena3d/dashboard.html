@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena Dashboard</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=29" />
-<link rel="stylesheet" href="/arena3d/dashboard.css?v=29" />
+<link rel="stylesheet" href="/arena3d/style.css?v=31" />
+<link rel="stylesheet" href="/arena3d/dashboard.css?v=31" />
 </head>
 <body class="dash-body">
 
@@ -191,10 +191,14 @@
       <div class="dash-qr" id="payQr"></div>
       <!-- Shown only when a wallet extension is actually present. On desktop
            this is the one-click path; the QR above is for paying from a phone. -->
-      <button class="dash-btn-small dash-btn-primary" id="payWalletBtn" hidden>PAY WITH PHANTOM</button>
+      <div class="dash-pay-actions">
+        <button class="dash-btn-small dash-btn-primary" id="payWalletBtn" hidden>PAY WITH PHANTOM</button>
+      </div>
       <p class="dash-pay-hint">Scan with any Solana wallet, or open it on this device:</p>
-      <a class="dash-btn-small dash-btn-ghost" id="payLink" href="#">OPEN IN WALLET</a>
-      <button class="dash-btn-small dash-btn-ghost" id="payCopyBtn">COPY REQUEST</button>
+      <div class="dash-pay-actions">
+        <a class="dash-btn-small dash-btn-ghost" id="payLink" href="#">OPEN IN WALLET</a>
+        <button class="dash-btn-small dash-btn-ghost" id="payCopyBtn">COPY REQUEST</button>
+      </div>
       <div class="dash-pay-status" id="payStatus">Waiting for payment...</div>
       <p class="dash-note dash-testnet-warning" id="payTestnet" hidden>
         <strong>TEST MODE (devnet)</strong> &mdash; this pays with valueless test SOL.
@@ -223,7 +227,7 @@
     </div>
   </div>
 
-  <script type="module" src="/arena3d/dashboard.js?v=29"></script>
+  <script type="module" src="/arena3d/dashboard.js?v=31"></script>
   <script src="/beta.js?v=1"></script>
 </body>
 </html>

@@ -599,7 +599,29 @@
   margin: 0 0 10px;
 }
 
-.dash-pay-card .dash-btn-small { margin: 0 4px 8px; }
+/* OPEN IN WALLET is an <a>, and an anchor is display:inline by default, so
+   its vertical padding does not push its neighbours away -- the buttons
+   overlapped each other. Laying the group out as a column fixes that and
+   also stops the three actions competing for one line on a narrow card. */
+.dash-pay-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.dash-pay-card .dash-btn-small {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* The wallet button is the primary route on desktop; give it room. */
+#payWalletBtn { padding: 12px 16px; font-size: 13px; }
 
 .dash-pay-status {
   font-size: 12px;

@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=24";
-import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=24";
-import { submitMatchResult } from "/arena3d/account.js?v=24";
-import * as MP from "/arena3d/mp.js?v=24";
-import { mp } from "/arena3d/mp.js?v=24";
+import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=28";
+import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=28";
+import { submitMatchResult } from "/arena3d/account.js?v=28";
+import * as MP from "/arena3d/mp.js?v=28";
+import { mp } from "/arena3d/mp.js?v=28";
 
 // ---------- DOM ----------
 const canvas = document.getElementById("game");

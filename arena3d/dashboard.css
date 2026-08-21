@@ -543,3 +543,82 @@
 .dash-balances .dash-stat-row strong { color: #ffb347; }
 
 .dash-signin-nudge { margin-top: 0; margin-bottom: 12px; }
+
+/* ---------- generated room password ---------- */
+
+.dash-code-help {
+  font-size: 12px;
+  color: #fff8e6b3;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+/* Monospace and widely spaced, because this gets read off a screen and typed
+   into a phone by someone else. */
+.dash-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 26px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  color: #ffe9a8;
+  background: rgba(255, 179, 71, 0.12);
+  border: 1px solid rgba(255, 233, 168, 0.35);
+  border-radius: 12px;
+  padding: 14px 10px;
+  margin-bottom: 12px;
+  user-select: all;
+  word-break: break-all;
+}
+
+.dash-private-blurb {
+  font-size: 11px;
+  color: #fff8e680;
+  line-height: 1.5;
+  margin: -4px 0 0;
+}
+
+/* ---------- payment ---------- */
+
+.dash-pay-card { max-width: 340px; }
+
+.dash-qr {
+  width: 220px;
+  max-width: 100%;
+  margin: 0 auto 14px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  line-height: 0;
+}
+
+.dash-qr svg { width: 100%; height: auto; display: block; }
+
+.dash-pay-hint {
+  font-size: 11px;
+  color: #fff8e680;
+  margin: 0 0 10px;
+}
+
+.dash-pay-card .dash-btn-small { margin: 0 4px 8px; }
+
+.dash-pay-status {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #ffb347;
+  margin: 10px 0 4px;
+  min-height: 18px;
+}
+
+.dash-pay-status.paid { color: #7fd97f; }
+.dash-pay-status.failed { color: #ff8a8a; }
+
+/* Never let a test-money purchase be mistaken for a real one. */
+.dash-testnet-warning {
+  color: #ffb347;
+  border: 1px dashed rgba(255, 179, 71, 0.45);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+.dash-testnet-warning strong { color: #ffe9a8; }

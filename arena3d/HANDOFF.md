@@ -147,7 +147,7 @@ Decisions already made with the user:
   **This is also the manual-repair path if a real payment ever fails to credit.**
 - `/api/me` and the WebSocket `welcome` both carry balances.
 
-**Now VERIFIED — `scripts/test-upgrades.mjs` scores 27/27.** (It needs a seeded
+**Now VERIFIED — `scripts/test-upgrades.mjs` scores 32/32.** (It needs a seeded
 fixture player; the exact setup commands are in the file's header comment.)
 Covered: private room creation, the `isPrivate` flag, the password never
 reaching any client, wrong/right password, the credit spent at countdown, the
@@ -247,8 +247,132 @@ was arming an in-page poller that clicks the instant the prompt appears, then
 triggering the kill from a scripted Node opponent that speaks the wire protocol
 (the harness in `scripts/test-upgrades.mjs` is reusable for this).
 
-**Not started:** any payment code. The two real products in the panel are
-priced but their buttons stay disabled until checkout exists.
+### Private servers are a 24-HOUR PASS, not per-match credits
+
+0.1 SOL buys 24 hours of private-server access. Playing does not draw it down;
+buying again while one is live **extends** rather than restarts it. The old
+`privateGames` counter is gone -- `players.json` now carries `privateUntil`, a
+millisecond timestamp, and `privateAccess(playerId)` in `store.mjs` is the only
+thing that decides whether a pass is open.
+
+`ENTITLEMENTS` now has a `type`: `count` (a stock you spend, i.e. extra lives)
+or `window` (access on a clock). `spendEntitlement()` deliberately returns null
+for a window -- there are no units to decrement, and a caller that thought
+otherwise would be wrong in a way worth failing loudly.
+
+The pass is checked at **every match start**, not only at room creation, so one
+purchase cannot buy a permanent private server by never closing the tab.
+
+### Room passwords are GENERATED, not chosen
+
+Ten characters from a 31-glyph alphabet with `0 O 1 I L` left out, grouped as
+`XXXXX-XXXXX`. They get read aloud and retyped from photos, so look-alikes cost
+more in mistyped codes than they add in entropy, and matching is
+case-insensitive.
+
+This changed how they are stored, and the reasoning matters if anyone revisits
+it. A *typed* password is a credential -- people reuse them, so it must be
+hashed and unrecoverable. A *generated* per-room code is not: it exists for one
+room on one evening, and its entire purpose is to be read off the screen and
+sent to a friend, which hashing would make impossible. So it is held in clear,
+and the protections sit where they actually apply:
+
+- memory only, never written to disk, dies with the room
+- only ever sent to the room's current host (`passwordForHost()`)
+- never in `roomSummary()`, so it cannot ride out on the room list
+- five wrong guesses per client buys a minute of silence
+
+Protocol: `create` takes `private: true` (no password); `joined` comes back to
+the host alone carrying `name` and `password`. A host who dismissed the dialog
+asks again with `{t:"password"}` -- the server re-checks that they are still the
+host rather than trusting a cached value. The name rides on `joined` because
+that message arrives *before* the `room` message that would otherwise carry it.
+
+## PAYMENTS: built, on devnet, disabled in production
+
+**Production has no `TREASURY_ADDRESS` set, so payments are OFF there and the
+Upgrades panel stays locked.** That is the safe default and nothing changes
+until you set it. Everything defaults to devnet; going live is a deliberate
+`SOLANA_CLUSTER=mainnet-beta`.
+
+Env: `TREASURY_ADDRESS`, `SOLANA_CLUSTER` (default `devnet`), optional
+`SOLANA_RPC_URL` to escape the public endpoint's rate limits.
+
+### The shape of it, and why there is no KYC
+
+**We never hold, move, or sign for funds.** The player's wallet sends SOL
+straight to the treasury, wallet to wallet. This server only *watches* the
+chain and, when it sees the transfer land, ticks a number up in `players.json`.
+There is no private key anywhere in this codebase and nothing here worth
+stealing. That is why no business verification, merchant account or KYC is
+involved -- there is no intermediary to register with. Verification only ever
+appears at the **off-ramp** (an exchange KYCs you when converting SOL to
+ordinary money) and in **tax**, neither of which is triggered by taking payment.
+
+Correlating a payment to a player is the only real problem, and Solana Pay
+solves it: each invoice gets a fresh random 32-byte `reference` included in the
+transaction as a read-only account, so `getSignaturesForAddress(reference)`
+finds exactly the transaction that paid it without knowing the payer up front.
+
+### Two ways to pay, one payment
+
+- **Phantom connect** (desktop, primary). The server builds an **unsigned**
+  transaction (`POST /api/pay/tx`, `server/solana-tx.mjs`) and the wallet signs
+  it. Built server-side on purpose: one tested copy of the binary encoding
+  instead of a second in the browser that could drift, and the amount,
+  recipient and reference are fixed by the server rather than by the page.
+  Any provider exposing the same shape works; it is not Phantom-specific.
+- **Solana Pay QR + link** (phone). `arena3d/qr.js` is a from-scratch encoder,
+  byte mode, versions 1-13, EC L and M.
+
+### Files
+
+- `server/base58.mjs` - checked against 12 published vectors incl. leading zeros
+- `server/solana-tx.mjs` - unsigned legacy transaction message
+- `server/payments.mjs` - invoices, chain verification, crediting, sweep
+- `arena3d/qr.js` - QR encoder
+- `scripts/test-payments.mjs`, `scripts/test-qr.mjs`, `scripts/devnet-pay.mjs`
+
+### What is verified, and the one thing that is not
+
+`scripts/test-payments.mjs` (**16/16**) drives a fake RPC and proves the
+verifier refuses underpayment by one lamport, payment to another address, a
+failed transaction, and a signature replayed against a second invoice -- and
+that a dead RPC leaves an invoice *pending* rather than failing it.
+
+`scripts/test-qr.mjs` (**19/19**) checks two ways, and needs both. Against the
+**published** format/version tables from the standard, and by decoding the
+matrix back with a Reed-Solomon syndrome check. The published table is what
+caught a real bug: the version-information generator polynomial was the 10-bit
+format one instead of the 13-bit version one. The round-trip was perfectly
+happy with it, because the decoder was *told* the version rather than reading
+it off the symbol. A self-consistent encoder/decoder pair will agree on their
+own mistakes -- keep the external check.
+
+**NOT PROVEN: a funded transfer actually landing and being credited.** The
+public devnet faucet was exhausted for this IP, so no wallet could be funded.
+What is proven is that devnet accepts the transaction's signature and structure
+(it stops at `AccountNotFound`, i.e. only the balance is missing) -- and the
+controls were run, so that means something: a corrupted signature gives
+`SignatureFailure`, a malformed header is rejected while sanitizing. Both the
+hand-built and the server-built messages pass, and are byte-identical.
+
+**To close it:** run `node scripts/devnet-pay.mjs <baseUrl> <sessionCookie>
+<product>`, or just pay the printed `solana:` link once from a devnet wallet.
+The script falls back to `simulateTransaction` when the faucet is dry and says
+plainly which of the two happened -- it will never claim "credited" when
+nothing was.
+
+### Before switching to mainnet
+
+1. Close the gap above on devnet first, with a real funded payment.
+2. Set `TREASURY_ADDRESS` in Hostinger, then `SOLANA_CLUSTER=mainnet-beta`.
+3. Consider a paid RPC endpoint. The public one rate limits, and the sweep is
+   what credits someone who paid and closed the tab.
+4. `POST /api/admin/grant` is still the manual repair path if a payment is ever
+   taken but not credited. Keep `ADMIN_TOKEN` set.
+
+**Still not started:** the Ammo and Skin upgrades remain COMING SOON by design.
 
 ### Recent bug fixes worth not regressing
 
@@ -319,7 +443,7 @@ between clients. See the authority split in `server/README-multiplayer.md`.
 
 ## Cache-busting gotcha (cost real time this session)
 
-`character.js`/`profile.js` were originally imported from `arena3d.js`/`dashboard.js` with **no** `?v=` query param at all, and the `?v=1` on the top-level `<script>` tags was never bumped across many edits. The static dev server (`npx serve`) and/or the browser cached these aggressively, so several rounds of genuinely-correct fixes to `character.js` may have silently never reached the browser being tested. Every internal import now has a version param — **always bump every `?v=N` occurrence across `index.html`, `dashboard.html`, `arena3d.js`, `dashboard.js`, `character.js`'s own imports, etc. together, in lockstep, on every edit** (currently `v=24`; `grep -rn '?v=' --include=*.js --include=*.html .` finds them all), and tell the user to hard-refresh, not just reload.
+`character.js`/`profile.js` were originally imported from `arena3d.js`/`dashboard.js` with **no** `?v=` query param at all, and the `?v=1` on the top-level `<script>` tags was never bumped across many edits. The static dev server (`npx serve`) and/or the browser cached these aggressively, so several rounds of genuinely-correct fixes to `character.js` may have silently never reached the browser being tested. Every internal import now has a version param — **always bump every `?v=N` occurrence across `index.html`, `dashboard.html`, `arena3d.js`, `dashboard.js`, `character.js`'s own imports, etc. together, in lockstep, on every edit** (currently `v=28`; `grep -rn '?v=' --include=*.js --include=*.html .` finds them all), and tell the user to hard-refresh, not just reload.
 
 ## What's left (explicitly out of scope so far, by design)
 

@@ -20,7 +20,8 @@ import { sessionPlayer } from "./store.mjs";
 import {
   rooms, createRoom, joinRoom, leaveRoom, listRooms, roomStateMessage,
   beginCountdown, startMatch, applyEntityStates, applyHit, checkMatchOver,
-  snapshot, sweepRooms, ensurePermanentRooms, spendExtraLife, TICK_MS, LOW_HEALTH,
+  snapshot, sweepRooms, ensurePermanentRooms, spendExtraLife, passwordForHost,
+  TICK_MS, LOW_HEALTH,
 } from "./rooms.mjs";
 import { entitlementsOf } from "./store.mjs";
 
@@ -286,15 +287,25 @@ function handle(client, msg, conn) {
     case "rooms":
       return send(client, { t: "rooms", rooms: listRooms() });
 
+    case "password": {
+      // Asked for by the host when they want to share it again. Anyone else
+      // gets nothing -- not an error, just nothing to see.
+      const room = client.room;
+      if (!room) return;
+      const password = passwordForHost(room, client);
+      if (password) send(client, { t: "password", roomId: room.id, password });
+      return;
+    }
+
     case "create": {
-      // A password turns this into a private server: listed by name, but only
-      // joinable by someone who has the password.
+      // `private` asks for a private server; the password is generated here,
+      // not chosen by the caller, and comes back to this client alone.
       const room = createRoom({
         name: msg.name, mode: msg.mode, hostClient: client,
-        password: msg.password ? String(msg.password) : null,
+        isPrivate: Boolean(msg.private),
       });
       joinRoom(room, client);
-      send(client, { t: "joined", roomId: room.id });
+      send(client, { t: "joined", roomId: room.id, name: room.name, password: passwordForHost(room, client) });
       return pushRoomState(room);
     }
 
@@ -303,7 +314,7 @@ function handle(client, msg, conn) {
       if (!room) return fail(client, "That server no longer exists.");
       // Already in it (a reconnect that re-sends join) -- just resync.
       if (client.room === room) {
-        send(client, { t: "joined", roomId: room.id });
+        send(client, { t: "joined", roomId: room.id, name: room.name, password: passwordForHost(room, client) });
         send(client, roomStateMessage(room));
         if (room.state === "playing") send(client, matchStateMessage(room, client));
         return;

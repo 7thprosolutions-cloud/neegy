@@ -1,9 +1,10 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=24";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=24";
-import * as net from "/arena3d/net.js?v=24";
+} from "/arena3d/profile.js?v=28";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=28";
+import * as net from "/arena3d/net.js?v=28";
+import { qrSvg } from "/arena3d/qr.js?v=28";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -27,12 +28,32 @@ const confirmCreateBtn = document.getElementById("confirmCreateBtn");
 const cancelCreateBtn = document.getElementById("cancelCreateBtn");
 const privateCheck = document.getElementById("privateCheck");
 const privateNote = document.getElementById("privateNote");
-const newServerPassword = document.getElementById("newServerPassword");
+const privateBlurb = document.getElementById("privateBlurb");
 
 const balancesEl = document.getElementById("balances");
 const balLivesEl = document.getElementById("balLives");
-const balGamesEl = document.getElementById("balGames");
+const balPassEl = document.getElementById("balPass");
 const upgradesSignedOut = document.getElementById("upgradesSignedOut");
+const payNote = document.getElementById("payNote");
+const testnetWarning = document.getElementById("testnetWarning");
+
+const codeOverlay = document.getElementById("codeOverlay");
+const codeRoomName = document.getElementById("codeRoomName");
+const roomCodeEl = document.getElementById("roomCode");
+const copyCodeBtn = document.getElementById("copyCodeBtn");
+const codeDoneBtn = document.getElementById("codeDoneBtn");
+const showCodeBtn = document.getElementById("showCodeBtn");
+
+const payOverlay = document.getElementById("payOverlay");
+const payTitle = document.getElementById("payTitle");
+const payAmount = document.getElementById("payAmount");
+const payQr = document.getElementById("payQr");
+const payLink = document.getElementById("payLink");
+const payCopyBtn = document.getElementById("payCopyBtn");
+const payStatusEl = document.getElementById("payStatus");
+const payCloseBtn = document.getElementById("payCloseBtn");
+const payWalletBtn = document.getElementById("payWalletBtn");
+const payTestnet = document.getElementById("payTestnet");
 
 const passwordOverlay = document.getElementById("passwordOverlay");
 const passwordRoomName = document.getElementById("passwordRoomName");
@@ -67,7 +88,20 @@ let currentRoom = null; // the room we are actually sitting in, server-side
 let myClientId = null;
 // Paid balances, authoritative from the server (`welcome`, then `entitlements`
 // after anything spends one). Never inferred locally -- the server owns these.
-let entitlements = { extraLives: 0, privateGames: 0 };
+let entitlements = { extraLives: 0, privateUntil: 0, privateActive: false, privateMsLeft: 0 };
+// What the server will and will not sell, answered by /api/pay/config. Null
+// until that lands, which is why the buy buttons start disabled.
+let payConfig = null;
+// The invoice currently on screen, and the poll watching for it to land.
+let activeInvoice = null;
+let payPollTimer = null;
+// Set once a wallet has actually submitted the transaction. Without it the
+// three-second poll overwrites "sent" with "waiting for payment", so the
+// moment after someone approves in Phantom reads as though nothing happened.
+let walletSubmitted = false;
+// The generated code for the private room we are hosting, kept so the host can
+// bring it back up after dismissing the dialog.
+let hostedRoomCode = null;
 // The private room we are mid-way through unlocking, so the password dialog
 // knows what it is asking about and where to send the answer.
 let pendingPrivateJoin = null;
@@ -120,7 +154,7 @@ playerNameEl.addEventListener("change", () => {
 signOutBtn.addEventListener("click", async () => {
   await logout();
   account = null;
-  entitlements = { extraLives: 0, privateGames: 0 };
+  entitlements = { extraLives: 0, privateUntil: 0, privateActive: false, privateMsLeft: 0 };
   renderIdentity();
   renderProfile();
   renderLeaderboard();
@@ -133,6 +167,14 @@ signOutBtn.addEventListener("click", async () => {
   const state = await getAccount();
   backendAvailable = state.backendAvailable;
   account = state.player;
+  if (account) {
+    entitlements = {
+      extraLives: account.extraLives || 0,
+      privateUntil: account.privateUntil || 0,
+      privateActive: Boolean(account.privateActive),
+      privateMsLeft: account.privateMsLeft || 0,
+    };
+  }
   if (backendAvailable) realLeaderboard = await fetchLeaderboard();
   renderIdentity();
   renderProfile();
@@ -155,36 +197,44 @@ signOutBtn.addEventListener("click", async () => {
 // private room charges the creator a credit at match start, so offering the box
 // to someone who cannot be charged (signed out, or out of credits) would only
 // produce a server that refuses to start.
+// A pass is a deadline, not a count, so it wants saying in the units a person
+// would use: hours while there are hours left, minutes once it is nearly gone.
+function describePass(msLeft) {
+  if (msLeft <= 0) return "none";
+  const hours = Math.floor(msLeft / 3600000);
+  const minutes = Math.round((msLeft % 3600000) / 60000);
+  if (hours >= 1) return `${hours}h ${minutes}m left`;
+  return `${Math.max(1, minutes)}m left`;
+}
+
 function renderEntitlements() {
   const known = Boolean(account);
   balancesEl.hidden = !known;
   upgradesSignedOut.hidden = known;
   balLivesEl.textContent = entitlements.extraLives;
-  balGamesEl.textContent = entitlements.privateGames;
+  balPassEl.textContent = describePass(entitlements.privateMsLeft || 0);
 
   const row = document.getElementById("privateToggleRow");
   let reason = "";
   if (!backendAvailable) reason = "needs a game server";
   else if (!account) reason = "sign in with X to host one";
-  else if (entitlements.privateGames <= 0) reason = "no private games left";
+  else if (!entitlements.privateActive) reason = "needs a 24h pass - 0.1 SOL";
 
   const allowed = !reason;
   privateCheck.disabled = !allowed;
   row.querySelector(".dash-check").classList.toggle("disabled", !allowed);
   if (!allowed) {
     privateCheck.checked = false;
-    newServerPassword.hidden = true;
+    privateBlurb.hidden = true;
   }
-  privateNote.textContent = allowed
-    ? `${entitlements.privateGames} private game${entitlements.privateGames === 1 ? "" : "s"} left`
-    : reason;
+  privateNote.textContent = allowed ? describePass(entitlements.privateMsLeft) : reason;
   privateNote.classList.toggle("warn", !allowed && Boolean(account));
+
+  renderBuyButtons();
 }
 
 privateCheck.addEventListener("change", () => {
-  newServerPassword.hidden = !privateCheck.checked;
-  if (privateCheck.checked) newServerPassword.focus();
-  else newServerPassword.value = "";
+  privateBlurb.hidden = !privateCheck.checked;
 });
 
 // The balance changes the moment anything spends one, and the server says so
@@ -193,6 +243,246 @@ net.on("entitlements", (msg) => {
   entitlements = msg.entitlements || entitlements;
   renderEntitlements();
 });
+
+// The pass is a deadline, so what it says goes stale on its own. Tick it down
+// once a minute rather than leaving "3h left" on screen until something else
+// happens to repaint.
+setInterval(() => {
+  if (!entitlements.privateActive) return;
+  entitlements.privateMsLeft = Math.max(0, entitlements.privateMsLeft - 60000);
+  if (entitlements.privateMsLeft === 0) entitlements.privateActive = false;
+  renderEntitlements();
+}, 60000);
+
+// ---------- buying ----------
+
+function renderBuyButtons() {
+  const buttons = document.querySelectorAll("[data-buy]");
+  const sellable = Boolean(payConfig?.enabled) && Boolean(account);
+  for (const btn of buttons) {
+    const product = payConfig?.products?.find((p) => p.key === btn.dataset.buy);
+    btn.disabled = !sellable;
+    btn.classList.toggle("dash-btn-locked", !sellable);
+    btn.classList.toggle("dash-btn-primary", sellable);
+    btn.textContent = product ? `${product.priceSol} SOL` : "0.1 SOL";
+  }
+  if (!payConfig) payNote.textContent = "Checking whether payments are available...";
+  else if (!payConfig.enabled) payNote.textContent = "Checkout opens once SOL payments are switched on.";
+  else if (!account) payNote.textContent = "Sign in with X to buy - purchases are tied to your handle.";
+  else payNote.textContent = "Pay from any Solana wallet. Credited automatically, usually within a minute.";
+  // Devnet must be impossible to mistake for the real thing.
+  testnetWarning.hidden = !(payConfig?.enabled && !payConfig.live);
+}
+
+(async () => {
+  try {
+    const res = await fetch("/api/pay/config", { credentials: "same-origin" });
+    payConfig = res.ok ? await res.json() : { enabled: false };
+  } catch {
+    payConfig = { enabled: false };
+  }
+  renderBuyButtons();
+})();
+
+document.querySelectorAll("[data-buy]").forEach((btn) => {
+  btn.addEventListener("click", () => beginPurchase(btn.dataset.buy));
+});
+
+async function beginPurchase(product) {
+  if (!payConfig?.enabled || !account) return;
+  const spec = payConfig.products.find((p) => p.key === product);
+  payTitle.textContent = spec?.label || "Buy";
+  payAmount.textContent = `${spec?.priceSol ?? 0.1} SOL`;
+  payQr.innerHTML = "";
+  payStatusEl.textContent = "Creating request...";
+  payStatusEl.className = "dash-pay-status";
+  payTestnet.hidden = payConfig.live;
+  payOverlay.classList.remove("hidden");
+
+  let invoice;
+  try {
+    const res = await fetch("/api/pay/start", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "could not start the payment");
+    invoice = body.invoice;
+  } catch (err) {
+    payStatusEl.textContent = err.message;
+    payStatusEl.className = "dash-pay-status failed";
+    return;
+  }
+
+  activeInvoice = invoice;
+  payLink.href = invoice.url;
+  try {
+    payQr.innerHTML = qrSvg(invoice.url);
+  } catch (err) {
+    // A QR that cannot be drawn is not a reason to block the payment -- the
+    // link below it carries exactly the same request.
+    payQr.innerHTML = "";
+    console.warn("qr:", err.message);
+  }
+  walletSubmitted = false;
+  const provider = browserWallet();
+  payWalletBtn.hidden = !provider;
+  payWalletBtn.disabled = false;
+  payWalletBtn.textContent = provider?.isPhantom ? "PAY WITH PHANTOM" : "PAY WITH WALLET";
+
+  payStatusEl.textContent = "Waiting for payment...";
+  pollPayment();
+}
+
+// Polls until it lands. The server re-checks the chain on each of these, so
+// this is also what makes a payment show up within a second or two of
+// confirming rather than waiting for the background sweep.
+function pollPayment() {
+  clearInterval(payPollTimer);
+  let elapsed = 0;
+  payPollTimer = setInterval(async () => {
+    if (!activeInvoice) return clearInterval(payPollTimer);
+    elapsed += 3;
+    try {
+      const res = await fetch(`/api/pay/status?reference=${encodeURIComponent(activeInvoice.reference)}`, {
+        credentials: "same-origin",
+      });
+      const body = await res.json();
+      if (!res.ok) return;
+      if (body.status === "paid") {
+        clearInterval(payPollTimer);
+        payStatusEl.textContent = "Paid - credited to your account.";
+        payStatusEl.className = "dash-pay-status paid";
+        if (body.player) {
+          account = { ...account, ...body.player };
+          entitlements = {
+            extraLives: body.player.extraLives,
+            privateUntil: body.player.privateUntil,
+            privateActive: body.player.privateActive,
+            privateMsLeft: body.player.privateMsLeft,
+          };
+          renderEntitlements();
+        }
+        return;
+      }
+      if (body.status === "expired") {
+        clearInterval(payPollTimer);
+        payStatusEl.textContent = "This request expired. Close and try again.";
+        payStatusEl.className = "dash-pay-status failed";
+        return;
+      }
+      if (walletSubmitted) {
+        payStatusEl.textContent = `Sent - waiting for the network to confirm... (${elapsed}s)`;
+      } else {
+        payStatusEl.textContent = elapsed < 20
+          ? "Waiting for payment..."
+          : `Waiting for payment... (${elapsed}s - confirmation can take a moment)`;
+      }
+    } catch {
+      /* a dropped poll is not a failed payment; the next one will ask again */
+    }
+  }, 3000);
+}
+
+// ---------- paying from a browser wallet ----------
+//
+// Phantom and the other extensions all inject the same provider shape, so this
+// is not Phantom-specific beyond the button text. There is no SDK and no
+// registration behind any of it: the extension signs a transaction the server
+// assembled, and the SOL moves wallet to wallet.
+function browserWallet() {
+  const provider = window.phantom?.solana || window.solana;
+  return provider?.isPhantom || provider?.isSolana ? provider : null;
+}
+
+async function payWithWallet() {
+  const provider = browserWallet();
+  if (!provider || !activeInvoice) return;
+  payWalletBtn.disabled = true;
+  try {
+    payStatusEl.className = "dash-pay-status";
+    payStatusEl.textContent = "Approve in your wallet...";
+    const { publicKey } = await provider.connect();
+    const payer = publicKey.toString();
+
+    // The server builds the transaction. It fixes the amount, the recipient
+    // and the reference, so this page cannot be talked into paying something
+    // other than the invoice it is displaying -- and the server still signs
+    // nothing; only the wallet can.
+    const res = await fetch("/api/pay/tx", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference: activeInvoice.reference, payer }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "could not prepare the transaction");
+
+    await provider.request({
+      method: "signAndSendTransaction",
+      params: { message: body.message },
+    });
+    walletSubmitted = true;
+    payStatusEl.textContent = "Sent - waiting for the network to confirm...";
+  } catch (err) {
+    // Declining in the wallet is a normal thing to do, not an error worth
+    // shouting about.
+    walletSubmitted = false;
+    const declined = /user rejected|declined|4001/i.test(err.message || "");
+    payStatusEl.textContent = declined ? "Cancelled in your wallet." : (err.message || "Wallet payment failed.");
+    payStatusEl.className = declined ? "dash-pay-status" : "dash-pay-status failed";
+  } finally {
+    payWalletBtn.disabled = false;
+  }
+}
+
+payWalletBtn.addEventListener("click", payWithWallet);
+
+function closePayment() {
+  clearInterval(payPollTimer);
+  activeInvoice = null;
+  payOverlay.classList.add("hidden");
+}
+
+payCloseBtn.addEventListener("click", closePayment);
+payCopyBtn.addEventListener("click", async () => {
+  if (!activeInvoice) return;
+  try {
+    await navigator.clipboard.writeText(activeInvoice.url);
+    payCopyBtn.textContent = "COPIED";
+    setTimeout(() => { payCopyBtn.textContent = "COPY REQUEST"; }, 1500);
+  } catch {
+    payCopyBtn.textContent = "COPY FAILED";
+  }
+});
+
+// ---------- the generated room password ----------
+
+function showRoomCode(name, code) {
+  hostedRoomCode = code;
+  codeRoomName.textContent = name || "";
+  roomCodeEl.textContent = code;
+  codeOverlay.classList.remove("hidden");
+}
+
+codeDoneBtn.addEventListener("click", () => codeOverlay.classList.add("hidden"));
+copyCodeBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(roomCodeEl.textContent);
+    copyCodeBtn.textContent = "COPIED";
+    setTimeout(() => { copyCodeBtn.textContent = "COPY PASSWORD"; }, 1500);
+  } catch {
+    copyCodeBtn.textContent = "COPY FAILED";
+  }
+});
+showCodeBtn.addEventListener("click", () => {
+  // Ask again rather than trusting what we cached: the host role can move, and
+  // the server is the only thing that knows whether we still hold it.
+  net.send({ t: "password" });
+});
+net.on("password", (msg) => showRoomCode(currentRoom?.name || "", msg.password));
 
 function lobbyStatusToast(message) {
   const note = document.getElementById("playerNameNote");
@@ -306,28 +596,18 @@ modePicker.querySelector('[data-mode="1v1"]').classList.add("selected");
 confirmCreateBtn.addEventListener("click", () => {
   if (!requireName()) return;
 
-  // Checked before the form is torn down, so a rejected password leaves what
-  // they typed on screen to correct rather than wiping the whole form.
   const wantsPrivate = privateCheck.checked && !privateCheck.disabled;
-  const password = wantsPrivate ? newServerPassword.value : "";
-  if (wantsPrivate && password.trim().length < 3) {
-    privateNote.textContent = "password needs at least 3 characters";
-    privateNote.classList.add("warn");
-    newServerPassword.focus();
-    return;
-  }
-
   const name = newServerNameEl.value.trim().slice(0, 24) || `${displayName() || "Player"}'s Server`;
   createServerForm.classList.add("hidden");
   newServerNameEl.value = "";
-  newServerPassword.value = "";
-  newServerPassword.hidden = true;
   privateCheck.checked = false;
+  privateBlurb.hidden = true;
   renderEntitlements();
 
   if (online) {
-    // The server assigns the real id and tells everyone else it exists.
-    net.createRoom(name, selectedMode, wantsPrivate ? password : null);
+    // The server assigns the real id, generates the password if this is
+    // private, and tells everyone else the room exists.
+    net.createRoom(name, selectedMode, wantsPrivate);
     return;
   }
   const server = { id: "custom-" + Date.now(), name, mode: selectedMode, hostName: displayName() || "You" };
@@ -525,6 +805,16 @@ net.on("rooms", (msg) => {
   if (!currentRoom) renderServers();
 });
 
+// Only ever sent to the host of a private room, and only on the socket that
+// created (or reclaimed) it.
+net.on("joined", (msg) => {
+  // The name rides along on this message rather than being read from
+  // currentRoom: `joined` arrives before the `room` message that sets it, so
+  // reading it there left the dialog titleless.
+  if (msg.password) showRoomCode(msg.name || "", msg.password);
+  else hostedRoomCode = null;
+});
+
 net.on("room", (msg) => {
   // Getting room state at all means we were let in, so the password (if we
   // were asked for one) was right.
@@ -626,11 +916,10 @@ function renderNetLobby(room) {
       : "Everyone's here.";
     startMatchBtn.hidden = !iAmHost;
     startMatchBtn.disabled = false;
-    // Starting a private match spends one of the host's credits, so never let
-    // that happen behind an unlabelled button.
-    startMatchBtn.textContent = room.isPrivate && iAmHost
-      ? "START · SPENDS 1 CREDIT"
-      : remaining > 0 ? "START WITH BOTS" : "START MATCH";
+    startMatchBtn.textContent = remaining > 0 ? "START WITH BOTS" : "START MATCH";
   }
+  // Only the host of a private room has a password to show.
+  showCodeBtn.hidden = !(room.isPrivate && iAmHost);
+
   lobbyOverlay.classList.remove("hidden");
 }

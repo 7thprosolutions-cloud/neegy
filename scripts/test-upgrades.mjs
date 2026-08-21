@@ -1,15 +1,16 @@
 // Exercises the private-server and extra-life rules over a real WebSocket.
 //
 // Needs a running server and the session id of a signed-in player who holds
-// exactly 10 extra lives and 5 private games -- the balance assertions are
-// absolute, so this runs against a fresh fixture, not your live data:
+// exactly 10 extra lives and an ACTIVE private-server pass -- the balance
+// assertions are absolute, so this runs against a fresh fixture, not live data.
+// `privateUntil` is a millisecond timestamp; set it a day ahead:
 //
 //   mkdir -p /tmp/neegy-test
-//   node -e "const fs=require('fs'),n=Date.now();fs.writeFileSync('/tmp/neegy-test/players.json',JSON.stringify({'x:999000111':{id:'x:999000111',xUserId:'999000111',handle:'testowner',name:'Test Owner',avatar:null,kills:0,deaths:0,xp:0,gamesPlayed:0,extraLives:10,privateGames:5,createdAt:n,lastSeen:n}}));fs.writeFileSync('/tmp/neegy-test/sessions.json',JSON.stringify({testsid:{playerId:'x:999000111',createdAt:n}}))"
+//   node -e "const fs=require('fs'),n=Date.now();fs.writeFileSync('/tmp/neegy-test/players.json',JSON.stringify({'x:999000111':{id:'x:999000111',xUserId:'999000111',handle:'testowner',name:'Test Owner',avatar:null,kills:0,deaths:0,xp:0,gamesPlayed:0,extraLives:10,privateUntil:n+86400000,createdAt:n,lastSeen:n}}));fs.writeFileSync('/tmp/neegy-test/sessions.json',JSON.stringify({testsid:{playerId:'x:999000111',createdAt:n}}))"
 //   PORT=8331 DATA_DIR=/tmp/neegy-test node server/server.mjs &
 //   node scripts/test-upgrades.mjs 8331 testsid
 //
-// Re-running spends credits, so reset players.json between runs.
+// Re-running spends extra lives, so reset players.json between runs.
 import net from "node:net";
 import crypto from "node:crypto";
 
@@ -85,29 +86,45 @@ await wait(400);
 
 const welcome = last(owner, "welcome");
 check("welcome carries entitlements", welcome?.you?.entitlements?.extraLives === 10,
-  `extraLives=${welcome?.you?.entitlements?.extraLives} privateGames=${welcome?.you?.entitlements?.privateGames}`);
+  `extraLives=${welcome?.you?.entitlements?.extraLives} privateActive=${welcome?.you?.entitlements?.privateActive}`);
+check("welcome reports an active pass", welcome?.you?.entitlements?.privateActive === true,
+  `${((welcome?.you?.entitlements?.privateMsLeft || 0) / 3600000).toFixed(1)}h left`);
 
-// create a private room
-owner.send({ t: "create", name: "Friends Only", mode: "1v1", password: "hunter2" });
+// A guest cannot open a private server at all -- it is charged to an account,
+// so there has to be an account.
+friend.log.length = 0;
+friend.send({ t: "create", name: "Guest Private", mode: "1v1", private: true });
 await wait(400);
-const roomId = last(owner, "joined")?.roomId;
+check("guest cannot open a private server", Boolean(last(friend, "error")), last(friend, "error")?.message);
+
+// create a private room -- the password is generated, not chosen
+owner.send({ t: "create", name: "Friends Only", mode: "1v1", private: true });
+await wait(400);
+const joined = last(owner, "joined");
+const roomId = joined?.roomId;
+const password = joined?.password;
 const roomMsg = last(owner, "room")?.room;
 check("private room created", Boolean(roomId), roomId?.slice(0, 14));
 check("room is flagged private", roomMsg?.isPrivate === true, `isPrivate=${roomMsg?.isPrivate}`);
+check("a password was generated for the host", /^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(password || ""), password);
+check("generated password avoids look-alike glyphs", !/[01OIL]/.test(password || ""), password);
 
-// the password must never be sent to clients
-const anyPassword = JSON.stringify(owner.log).match(/hunter2/);
-check("password never leaves the server", !anyPassword, anyPassword ? "LEAKED" : "not present in any message");
+// The room summary that every client sees must never carry it.
+check("password absent from the room summary", !JSON.stringify(roomMsg).includes(password), "not in room state");
 
 // wrong password is refused
 friend.log.length = 0;
-friend.send({ t: "join", roomId, password: "wrong" });
+friend.send({ t: "join", roomId, password: "WRONG-CODE" });
 await wait(400);
 check("wrong password refused", Boolean(last(friend, "error")), last(friend, "error")?.message);
 
+// and nobody but the host ever sees the real one
+check("password never reaches other players", !JSON.stringify(friend.log).includes(password),
+  "not in anything the guest received");
+
 // right password gets in
 friend.log.length = 0;
-friend.send({ t: "join", roomId, password: "hunter2" });
+friend.send({ t: "join", roomId, password });
 await wait(400);
 check("correct password admitted", Boolean(last(friend, "joined")), last(friend, "joined")?.roomId?.slice(0, 14));
 
@@ -119,7 +136,9 @@ const started = last(owner, "start");
 check("private match started", Boolean(started), started ? `owns ${started.owned?.length} slot(s)` : "no start message");
 
 const meAfterStart = await fetch(`http://127.0.0.1:${PORT}/api/me`, { headers: { Cookie: `neegy_sid=${SID}` } }).then((r) => r.json());
-check("private game credit spent (5 -> 4)", meAfterStart.player.privateGames === 4, `privateGames=${meAfterStart.player.privateGames}`);
+// A pass is a window, not a stock: playing does not draw it down.
+check("the 24h pass is not consumed by playing", meAfterStart.player.privateActive === true,
+  `${(meAfterStart.player.privateMsLeft / 3600000).toFixed(1)}h left`);
 
 // kill the owner, then revive
 const ownerEnt = started?.owned?.find((o) => !o.isBot)?.entityId;

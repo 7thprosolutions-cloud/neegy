@@ -171,11 +171,10 @@ export function ready(timeoutMs = 2500) {
 
 export const setName = (name) => send({ t: "name", name });
 export const listRooms = () => send({ t: "rooms" });
-// A password makes the room private. It is sent once, hashed server-side, and
-// never comes back down -- no client, including this one, is ever told a room's
-// password, so the creator has to remember what they typed.
-export const createRoom = (name, mode, password = null) =>
-  send({ t: "create", name, mode, password: password || undefined });
+// Asking for a private room does not send a password: the server generates one
+// and sends it back to the creator alone. Joining one does send it.
+export const createRoom = (name, mode, isPrivate = false) =>
+  send({ t: "create", name, mode, private: Boolean(isPrivate) || undefined });
 export const joinRoom = (roomId, password = null) =>
   send({ t: "join", roomId, password: password || undefined });
 export const leaveRoom = () => send({ t: "leave" });

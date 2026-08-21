@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena Dashboard</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=24" />
-<link rel="stylesheet" href="/arena3d/dashboard.css?v=24" />
+<link rel="stylesheet" href="/arena3d/style.css?v=28" />
+<link rel="stylesheet" href="/arena3d/dashboard.css?v=28" />
 </head>
 <body class="dash-body">
 
@@ -52,10 +52,11 @@
               <button class="dash-mode-opt" data-mode="3v3">3v3</button>
               <button class="dash-mode-opt" data-mode="5v5">5v5</button>
             </div>
-            <!-- Private servers cost a credit per match and are charged to the
-                 creator's account, so this whole block is only offered to a
-                 signed-in player who has credits. dashboard.js swaps in the
-                 reason when it cannot be offered. -->
+            <!-- A private server runs on a 24-hour pass bought for 0.1 SOL, so
+                 this is only offered to a signed-in player whose pass is live.
+                 dashboard.js swaps in the reason when it cannot be offered.
+                 There is no password field: the server generates the code and
+                 shows it to the creator once the room exists. -->
             <div class="dash-private-toggle" id="privateToggleRow">
               <label class="dash-check">
                 <input id="privateCheck" type="checkbox" />
@@ -63,8 +64,10 @@
               </label>
               <span class="dash-private-note" id="privateNote"></span>
             </div>
-            <input id="newServerPassword" type="password" maxlength="40"
-                   placeholder="Password for your friends" autocomplete="new-password" hidden />
+            <p class="dash-private-blurb" id="privateBlurb" hidden>
+              A password will be generated for you to share. Your pass lasts 24 hours
+              from purchase and covers as many private matches as you like.
+            </p>
 
             <div class="dash-create-actions">
               <button id="confirmCreateBtn" class="dash-btn-small dash-btn-primary">CREATE &amp; JOIN</button>
@@ -100,7 +103,7 @@
                simply not signed in yet. -->
           <div class="dash-balances" id="balances" hidden>
             <div class="dash-stat-row"><span>Extra lives</span><strong id="balLives">0</strong></div>
-            <div class="dash-stat-row"><span>Private server games</span><strong id="balGames">0</strong></div>
+            <div class="dash-stat-row"><span>Private server pass</span><strong id="balPass">none</strong></div>
           </div>
           <p class="dash-note dash-signin-nudge" id="upgradesSignedOut" hidden>
             Sign in with X to buy and hold upgrades — they are tied to your handle, not this browser.
@@ -109,16 +112,16 @@
           <div class="dash-upgrade-card">
             <div class="dash-upgrade-info">
               <strong>Extra Lives</strong>
-              <span>10 revives · one per match</span>
+              <span>10 refills &middot; one per match</span>
             </div>
             <button class="dash-btn-small dash-btn-locked" data-buy="extraLives" disabled>0.1 SOL</button>
           </div>
           <div class="dash-upgrade-card">
             <div class="dash-upgrade-info">
-              <strong>Private Servers</strong>
-              <span>5 password-locked matches</span>
+              <strong>Private Server Pass</strong>
+              <span>24 hours &middot; unlimited private matches</span>
             </div>
-            <button class="dash-btn-small dash-btn-locked" data-buy="privateGames" disabled>0.1 SOL</button>
+            <button class="dash-btn-small dash-btn-locked" data-buy="privateServer" disabled>0.1 SOL</button>
           </div>
           <div class="dash-upgrade-card">
             <div class="dash-upgrade-info">
@@ -135,6 +138,10 @@
             <button class="dash-btn-small dash-btn-locked" disabled>COMING SOON</button>
           </div>
           <p class="dash-note" id="payNote">Checkout opens once SOL payments are switched on.</p>
+          <p class="dash-note dash-testnet-warning" id="testnetWarning" hidden>
+            <strong>TEST MODE</strong> &mdash; this server is pointed at Solana devnet.
+            Payments here use valueless test SOL, not real money.
+          </p>
         </section>
       </aside>
     </div>
@@ -151,7 +158,49 @@
         <!-- Online only: the host may start before every slot is filled, and
              the remaining slots become bots the host simulates locally. -->
         <button id="startMatchBtn" class="dash-btn-small dash-btn-primary" hidden>START MATCH</button>
+        <button id="showCodeBtn" class="dash-btn-small dash-btn-ghost" hidden>SHOW PASSWORD</button>
         <button id="cancelLobbyBtn" class="dash-btn-small dash-btn-ghost">LEAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shown to the creator of a private server, once, with the generated code.
+       They can reopen it from the lobby, because they will close this and then
+       need to send the code to someone. -->
+  <div id="codeOverlay" class="dash-lobby-overlay hidden">
+    <div class="dash-lobby-card">
+      <h2>&#128274; Private server ready</h2>
+      <p class="dash-lobby-mode" id="codeRoomName">Server</p>
+      <p class="dash-code-help">Share this password with the friends you want in. They will
+        see the server in the list and be asked for it.</p>
+      <div class="dash-code" id="roomCode">-----</div>
+      <button id="copyCodeBtn" class="dash-btn-small dash-btn-ghost">COPY PASSWORD</button>
+      <p class="dash-note">Your pass is good for 24 hours &mdash; run as many private matches as you like in that time.</p>
+      <div class="dash-lobby-actions">
+        <button id="codeDoneBtn" class="dash-btn-small dash-btn-primary">GOT IT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Solana Pay. The QR and the link carry the same request; scanning it with
+       a phone wallet and tapping it on mobile are the two ways people pay. -->
+  <div id="payOverlay" class="dash-lobby-overlay hidden">
+    <div class="dash-lobby-card dash-pay-card">
+      <h2 id="payTitle">Buy</h2>
+      <p class="dash-lobby-mode" id="payAmount">0.1 SOL</p>
+      <div class="dash-qr" id="payQr"></div>
+      <!-- Shown only when a wallet extension is actually present. On desktop
+           this is the one-click path; the QR above is for paying from a phone. -->
+      <button class="dash-btn-small dash-btn-primary" id="payWalletBtn" hidden>PAY WITH PHANTOM</button>
+      <p class="dash-pay-hint">Scan with any Solana wallet, or open it on this device:</p>
+      <a class="dash-btn-small dash-btn-ghost" id="payLink" href="#">OPEN IN WALLET</a>
+      <button class="dash-btn-small dash-btn-ghost" id="payCopyBtn">COPY REQUEST</button>
+      <div class="dash-pay-status" id="payStatus">Waiting for payment...</div>
+      <p class="dash-note dash-testnet-warning" id="payTestnet" hidden>
+        <strong>TEST MODE (devnet)</strong> &mdash; valueless test SOL, not real money.
+      </p>
+      <div class="dash-lobby-actions">
+        <button id="payCloseBtn" class="dash-btn-small dash-btn-ghost">CLOSE</button>
       </div>
     </div>
   </div>
@@ -172,7 +221,7 @@
     </div>
   </div>
 
-  <script type="module" src="/arena3d/dashboard.js?v=24"></script>
+  <script type="module" src="/arena3d/dashboard.js?v=28"></script>
   <script src="/beta.js?v=1"></script>
 </body>
 </html>

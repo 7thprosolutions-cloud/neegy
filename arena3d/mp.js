@@ -13,7 +13,7 @@
 //     by interpolating toward the last snapshot the server sent.
 //   - Health, damage, deaths and the end of the match are decided by the
 //     server. A local bullet hit reports a claim and waits to be told.
-import * as net from "/arena3d/net.js?v=24";
+import * as net from "/arena3d/net.js?v=28";
 
 export const mp = {
   active: false,

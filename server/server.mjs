@@ -15,8 +15,13 @@ import {
   upsertPlayer, recordMatch, leaderboard,
   createSession, sessionPlayer, destroySession, describeStorage,
   sweepSessions, flushNow, grantEntitlement, ENTITLEMENTS, findPlayerByHandle,
+  getPayment, paymentsForPlayer,
 } from "./store.mjs";
 import { attachGameServer } from "./gameserver.mjs";
+import {
+  configurePayments, paymentConfig, productCatalog, startPayment, checkPayment,
+  startPaymentSweep, buildWalletTransaction,
+} from "./payments.mjs";
 
 const env = loadEnv();
 const PORT = Number(env.PORT || 5174);
@@ -103,10 +108,15 @@ function currentPlayer(req) {
 function publicPlayer(p) {
   if (!p) return null;
   const { id, handle, name, avatar, kills, deaths, xp, gamesPlayed } = p;
+  const privateUntil = p.privateUntil || 0;
   return {
     id, handle, name, avatar, kills, deaths, xp, gamesPlayed,
     extraLives: p.extraLives || 0,
-    privateGames: p.privateGames || 0,
+    privateUntil,
+    privateActive: privateUntil > Date.now(),
+    // Sent as a duration as well as a deadline, so the page never has to trust
+    // the device clock to work out whether a pass is still good.
+    privateMsLeft: Math.max(0, privateUntil - Date.now()),
   };
 }
 
@@ -251,6 +261,93 @@ async function handleApi(req, res, url) {
     const updated = grantEntitlement(target.id, kind, qty);
     console.log(`[admin] granted ${qty} ${kind} to @${target.handle}`);
     return sendJson(res, 200, { player: publicPlayer(updated) });
+  }
+
+  // ---------- payments ----------
+
+  if (p === "/api/pay/config" && req.method === "GET") {
+    const cfg = paymentConfig();
+    return sendJson(res, 200, {
+      enabled: cfg.enabled,
+      cluster: cfg.cluster,
+      // The address is public by definition -- it is where the money goes, and
+      // the payer needs it to send anything at all.
+      recipient: cfg.enabled ? cfg.treasury : null,
+      // So the page can say plainly that no real money is involved yet.
+      live: cfg.cluster === "mainnet-beta",
+      products: productCatalog(),
+    });
+  }
+
+  if (p === "/api/pay/start" && req.method === "POST") {
+    const me = currentPlayer(req);
+    // Payment has to be tied to an identity, or there is nobody to credit.
+    if (!me) return sendJson(res, 401, { error: "Sign in with X before buying." });
+    let body;
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: "invalid JSON" });
+    }
+    try {
+      return sendJson(res, 200, { invoice: startPayment(me.id, body?.product) });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  if (p === "/api/pay/status" && req.method === "GET") {
+    const me = currentPlayer(req);
+    if (!me) return sendJson(res, 401, { error: "not signed in" });
+    const reference = url.searchParams.get("reference") || "";
+    const record = getPayment(reference);
+    // Someone else's invoice is none of your business, and saying "not found"
+    // for both cases means the endpoint cannot be used to probe for live
+    // references belonging to other players.
+    if (!record || record.playerId !== me.id) {
+      return sendJson(res, 404, { error: "no such payment" });
+    }
+    // Ask the chain on demand as well as on the sweep, so a player watching
+    // the screen sees it land in a second or two rather than up to twenty.
+    const checked = record.status === "pending" ? await checkPayment(reference) : record;
+    return sendJson(res, 200, {
+      status: checked.status,
+      signature: checked.signature,
+      cluster: checked.cluster,
+      product: checked.product,
+      expiresAt: checked.expiresAt,
+      player: publicPlayer(currentPlayer(req)),
+    });
+  }
+
+  // Hands a browser wallet an UNSIGNED transaction to sign. The server holds no
+  // key and signs nothing; this only assembles bytes.
+  if (p === "/api/pay/tx" && req.method === "POST") {
+    const me = currentPlayer(req);
+    if (!me) return sendJson(res, 401, { error: "not signed in" });
+    let body;
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: "invalid JSON" });
+    }
+    const record = getPayment(body?.reference || "");
+    if (!record || record.playerId !== me.id) return sendJson(res, 404, { error: "no such payment" });
+    try {
+      return sendJson(res, 200, await buildWalletTransaction(record.reference, String(body?.payer || "")));
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }
+
+  if (p === "/api/pay/history" && req.method === "GET") {
+    const me = currentPlayer(req);
+    if (!me) return sendJson(res, 401, { error: "not signed in" });
+    return sendJson(res, 200, {
+      payments: paymentsForPlayer(me.id).map(({ reference, product, status, signature, createdAt, cluster }) => ({
+        reference, product, status, signature, createdAt, cluster,
+      })),
+    });
   }
 
   if (p === "/api/leaderboard" && req.method === "GET") {
@@ -438,6 +535,8 @@ server.listen(PORT, HOST, () => {
   console.log(`  dashboard: http://localhost:${PORT}/arena3d/dashboard.html`);
   console.log(`  X credentials: ${configured ? "loaded" : "MISSING -- set X_CONSUMER_KEY / X_CONSUMER_SECRET"}`);
   console.log(`  multiplayer:   ws://localhost:${PORT}/ws`);
+  configurePayments(env);
+  startPaymentSweep();
   const store = describeStorage();
   console.log(`  player store:  ${store.players} players, ${store.sessions} sessions`);
   console.log(`                 ${store.dir}`);

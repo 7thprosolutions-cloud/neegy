@@ -13,7 +13,7 @@
 // humans before it could ever be played or tested.
 import crypto from "node:crypto";
 import { MODES } from "./modes.mjs";
-import { recordMatch, spendEntitlement, entitlementsOf } from "./store.mjs";
+import { recordMatch, spendEntitlement, entitlementsOf, privateAccess } from "./store.mjs";
 
 const TICK_MS = 66; // ~15 snapshots/sec -- plenty for this pace, easy on bandwidth
 const LOBBY_COUNTDOWN_MS = 3000;
@@ -28,6 +28,8 @@ const REVIVE_WINDOW_MS = 7000;
 // should be asked to hold, so the practical limit is CPU and bandwidth, not
 // this number. It exists to stop one script opening unbounded rooms.
 const MAX_ROOMS = 200;
+const MAX_GUESSES = 5;
+const GUESS_WINDOW_MS = 60000;
 const XP_PER_KILL = 25;
 const XP_PER_GAME = 5;
 
@@ -44,21 +46,42 @@ function now() {
   return Date.now();
 }
 
-// Room passwords are hashed, never stored or transmitted in clear. They are
-// low-stakes (a door code shared with friends, not an account credential), but
-// they still travel over the wire and sit in a file, so treat them properly:
-// per-room salt, and a timing-safe comparison so a wrong guess cannot be
-// distinguished from a near-miss by how long the check took.
-function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.scryptSync(String(password), salt, 32).toString("hex");
-  return { salt, hash };
+// Room passwords are generated, not chosen. That is a deliberate change from
+// letting the creator type one, and it changes how they must be stored.
+//
+// A typed password is a credential: people reuse them, so it must be hashed
+// and must never be recoverable, even by us. A generated per-room code is not
+// -- it exists for one room, on one evening, and its whole purpose is to be
+// read off the screen and sent to a friend. The creator therefore has to be
+// able to see it again after they close the dialog, which hashing would make
+// impossible. So it is held in clear, and the protections are placed where
+// they actually apply: it lives in memory only and is never written to disk,
+// it dies with the room, it is only ever sent to the room's own host, and
+// guesses are rate limited (see joinRoom) because an auto-generated code
+// invites people to assume it cannot be brute-forced.
+//
+// Ambiguous glyphs are left out. This gets read aloud, retyped from a photo,
+// and pasted out of chat apps that helpfully capitalise things -- 0/O and 1/I/l
+// cost more in mistyped codes than they add in entropy.
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function generatePassword() {
+  const bytes = crypto.randomBytes(10);
+  let out = "";
+  for (let i = 0; i < 10; i++) {
+    // ~49 bits over ten characters, grouped for reading.
+    out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+    if (i === 4) out += "-";
+  }
+  return out;
 }
 
 function passwordMatches(stored, attempt) {
   if (!stored) return true; // public room
-  const { hash } = hashPassword(attempt ?? "", stored.salt);
-  const a = Buffer.from(hash, "hex");
-  const b = Buffer.from(stored.hash, "hex");
+  const a = Buffer.from(String(attempt ?? "").trim().toUpperCase(), "utf8");
+  const b = Buffer.from(stored, "utf8");
+  // Length is not secret (it is fixed and public), but compare in constant
+  // time anyway so a near-miss cannot be told from a wrong guess by timing.
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -92,21 +115,26 @@ export function ensurePermanentRooms() {
   return [...rooms.values()].filter((r) => r.permanent).length;
 }
 
-export function createRoom({ name, mode, hostClient, permanent = false, password = null }) {
+export function createRoom({ name, mode, hostClient, permanent = false, isPrivate = false }) {
   if (!permanent && rooms.size >= MAX_ROOMS) throw new Error("Too many servers open right now.");
   if (!MODES[mode]) throw new Error("Unknown mode: " + mode);
-  const trimmed = typeof password === "string" ? password.trim() : "";
-  if (password !== null && password !== undefined && trimmed.length < 3) {
-    throw new Error("A private server needs a password of at least 3 characters.");
+  if (isPrivate) {
+    // Checked here as well as in the UI, because the UI is not what owns this.
+    if (!hostClient?.playerId) {
+      throw new Error("Sign in with X to open a private server.");
+    }
+    if (!privateAccess(hostClient.playerId).active) {
+      throw new Error("You need a private server pass. It costs 0.1 SOL and lasts 24 hours.");
+    }
   }
   const room = {
     id: id("room"),
     permanent,
     // Private rooms are listed but not joinable without the password, so
     // friends can find the server by name instead of swapping room ids.
-    isPrivate: Boolean(trimmed),
-    password: trimmed ? hashPassword(trimmed) : null,
-    // Whose private-game credits this room spends when a match starts.
+    isPrivate: Boolean(isPrivate),
+    password: isPrivate ? generatePassword() : null,
+    // Whose pass this room runs on.
     ownerPlayerId: hostClient?.playerId || null,
     name: String(name || "").trim().slice(0, 24) || `${hostClient.displayName}'s Server`,
     mode,
@@ -121,6 +149,7 @@ export function createRoom({ name, mode, hostClient, permanent = false, password
     countdownEndsAt: 0,
     lastHitAt: new Map(), // clientId -> ms, cheap rate limit on damage claims
     revived: new Set(), // clientIds that already spent an extra life this match
+    badGuesses: new Map(), // clientId -> { n, first } -- brute-force brake
   };
   rooms.set(room.id, room);
   return room;
@@ -133,12 +162,21 @@ export function roomSummary(room) {
     mode: room.mode,
     hostName: room.clients.get(room.hostId)?.displayName || (room.permanent ? "open" : "—"),
     permanent: Boolean(room.permanent),
-    // Only ever the flag -- the hash and salt stay server-side.
+    // Only ever the flag. The code itself goes to the host and nobody else --
+    // see hostView() below.
     isPrivate: Boolean(room.isPrivate),
     players: room.clients.size,
     capacity: room.teamSize * 2,
     state: room.state,
   };
+}
+
+// The one place a room's password is handed out, and only ever to the client
+// that is currently its host. Kept as a function rather than folded into the
+// room message so that every call site has to name what it is doing.
+export function passwordForHost(room, client) {
+  if (!room.isPrivate || room.hostId !== client.id) return null;
+  return room.password;
 }
 
 export function listRooms() {
@@ -162,8 +200,22 @@ export function joinRoom(room, client, password) {
   // person who can never get into it.
   const isCreator = room.hostId === client.id;
   const inside = room.clients.has(client.id);
-  if (room.isPrivate && !isCreator && !inside && !passwordMatches(room.password, password)) {
-    throw new Error("Wrong password for that private server.");
+  if (room.isPrivate && !isCreator && !inside) {
+    // Ten characters from a 31-glyph alphabet is a lot to guess, but the code
+    // being machine-generated is exactly why someone would try scripting it --
+    // it looks like the kind of thing a loop could chew through. Give the loop
+    // nothing: five wrong guesses buys a minute of silence.
+    const rec = room.badGuesses.get(client.id) || { n: 0, first: now() };
+    if (now() - rec.first > GUESS_WINDOW_MS) { rec.n = 0; rec.first = now(); }
+    if (rec.n >= MAX_GUESSES) {
+      throw new Error("Too many wrong passwords. Wait a minute and try again.");
+    }
+    if (!passwordMatches(room.password, password)) {
+      rec.n += 1;
+      room.badGuesses.set(client.id, rec);
+      throw new Error("Wrong password for that private server.");
+    }
+    room.badGuesses.delete(client.id);
   }
   if (client.room && client.room !== room) leaveRoom(client);
 
@@ -245,16 +297,16 @@ export function canStart(room) {
 // startMatch() hands the leftover slots to the host to simulate as bots.
 export function beginCountdown(room) {
   if (!canStart(room)) return false;
-  // A private match costs the room owner one of their private-game credits.
-  // Charged here, at the start of the countdown, rather than at room creation:
-  // a room that is never played should not cost anything, and the owner may
-  // run several matches from one room as long as they have credits left.
+  // A private match runs on the owner's pass. Checked at every start rather
+  // than only at room creation, so a room cannot outlive the pass that opened
+  // it -- otherwise one purchase would buy a permanent private server by
+  // simply never closing the tab.
   if (room.isPrivate) {
     if (!room.ownerPlayerId) {
       throw new Error("Private servers need the owner signed in with X.");
     }
-    if (spendEntitlement(room.ownerPlayerId, "privateGames") === null) {
-      throw new Error("No private games left. Top up in Upgrades to keep playing here.");
+    if (!privateAccess(room.ownerPlayerId).active) {
+      throw new Error("This private server's 24-hour pass has run out. Renew it in Upgrades.");
     }
   }
   room.state = "countdown";

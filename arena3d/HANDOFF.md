@@ -90,13 +90,44 @@ to only apply it to clips that actually loop.
 
 ## READ THIS FIRST — current state (most recent session)
 
-**The game is deployed, playable, and has real multiplayer working between real
-browsers.** Live preview (share this): <https://chocolate-gull-388433.hostingersite.com/play>
+**LAUNCHED.** `index.html` is now the new homepage (the V1 arcade moved to
+`/arcade.html`, which the homepage links to). `neegy.life` serves it.
 
-`neegy.life` is deliberately still the **V1 2D page** — the user has NOT launched
-yet. `index.html` is the V1 arcade; the new homepage is parked at `home.html`.
-**To launch: `cp home.html index.html` and push.** That one swap is the cutover.
-Do not do it without being asked.
+### The one thing that is still split, and why it matters
+
+`neegy.life` is a **STATIC** deploy of this branch. Every page is there, but
+there is **no Node process behind it** — `/api/*` and `/ws` both 404. The
+server only runs on the Hostinger **Web App**, currently
+`chocolate-gull-388433.hostingersite.com`.
+
+So the homepage detects this: when `/api/me` does not answer on its own origin,
+the play button points at the Web App instead, and players get the real game
+(sign-in, live matches, upgrades) rather than a stub. Verified from
+`neegy.life` itself — button routes across, socket connects LIVE, 9 servers
+listed, X sign-in offered.
+
+**To put everything on one domain: attach `neegy.life` to the Web App in
+Hostinger.** Then `/api/me` answers locally, the redirect branch in `home.js`
+stops firing on its own, and there is nothing to undo. The X callback
+`https://neegy.life/auth/x/callback` is already registered, so sign-in works
+the moment it switches.
+
+### Payments are OFF until two env vars are set on the Web App
+
+    TREASURY_ADDRESS=6ocgsbQ463HtiYhT2M5Bp15XbsNA2H2Qh4TYhSgFFmfe
+    ADMIN_TOKEN=<any long random string>
+
+The first switches purchasing on (devnet — test SOL). `ADMIN_TOKEN` is what
+makes `POST /api/admin/grant` work, and that is **the only way to repair a
+payment that is taken but not credited** — without it there is no manual path
+at all. Set both together.
+
+Real money needs a third, deliberately separate:
+
+    SOLANA_CLUSTER=mainnet-beta
+
+Until then the Upgrades panel reads "Checkout opens once SOL payments are
+switched on" and the buy buttons stay disabled, which is the safe state.
 
 ### Deployment (all working)
 

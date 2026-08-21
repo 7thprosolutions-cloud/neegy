@@ -1,10 +1,10 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=32";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=32";
-import * as net from "/arena3d/net.js?v=32";
-import { qrSvg } from "/arena3d/qr.js?v=32";
+} from "/arena3d/profile.js?v=34";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=34";
+import * as net from "/arena3d/net.js?v=34";
+import { qrSvg } from "/arena3d/qr.js?v=34";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -108,6 +108,21 @@ let payStatusLocked = false;
 // The generated code for the private room we are hosting, kept so the host can
 // bring it back up after dismissing the dialog.
 let hostedRoomCode = null;
+
+// ---- the browser-wallet button is OFF ----
+//
+// Not because it is broken -- it works, and the transaction it builds is
+// correct. Phantom's domain reputation scanner blocks connections from
+// neegy.life outright ("This dApp could be malicious"), before it ever looks
+// at the transaction. That is a false positive earned by being a young domain
+// that asks for SOL, and it needs a delisting appeal rather than a code
+// change.
+//
+// Until that clears, the QR and the solana: link carry exactly the same
+// payment through a different path that is not subject to the block. Flip
+// this back to true once the appeal lands -- nothing else needs touching, the
+// whole flow is still here and tested.
+const WALLET_BUTTON_ENABLED = false;
 // The private room we are mid-way through unlocking, so the password dialog
 // knows what it is asking about and where to send the answer.
 let pendingPrivateJoin = null;
@@ -337,6 +352,9 @@ async function beginPurchase(product) {
   // offered, and the QR stays off the screen entirely rather than relying on
   // anyone reading a warning.
   const testMoney = !payConfig.live;
+  document.querySelector(".dash-pay-hint").textContent = WALLET_BUTTON_ENABLED
+    ? "Scan with any Solana wallet, or open it on this device:"
+    : "Scan this with your Solana wallet, or open it on this device:";
   payQr.hidden = testMoney;
   payLink.hidden = testMoney;
   payCopyBtn.hidden = testMoney;
@@ -356,14 +374,19 @@ async function beginPurchase(product) {
   }
   walletSubmitted = false;
   payStatusLocked = false;
-  const provider = browserWallet();
+  const provider = WALLET_BUTTON_ENABLED ? browserWallet() : null;
   payWalletBtn.hidden = !provider;
   payWalletBtn.disabled = false;
   payWalletBtn.textContent = provider?.isPhantom ? "PAY WITH PHANTOM" : "PAY WITH WALLET";
 
+  // With the wallet route off, the QR is the only way to pay -- and the QR is
+  // deliberately not shown off mainnet, because a `solana:` request carries no
+  // cluster and a mainnet wallet would read a devnet one as real money. Say so
+  // rather than presenting a dialog with nothing to act on.
   if (testMoney && !provider) {
-    payStatusEl.textContent = "Test mode needs a browser wallet set to devnet.";
+    payStatusEl.textContent = "Purchases need the server on mainnet, or a browser wallet on devnet.";
     payStatusEl.className = "dash-pay-status failed";
+    payStatusLocked = true;
     return;
   }
 

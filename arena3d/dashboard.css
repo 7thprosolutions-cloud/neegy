@@ -611,6 +611,13 @@
   margin-bottom: 4px;
 }
 
+/* An author `display` rule beats the UA stylesheet's [hidden] { display:none },
+   so setting display:block below silently broke the hidden attribute on every
+   control in this card -- including the solana: link that is deliberately
+   suppressed off mainnet, where a mainnet wallet reading a devnet request
+   would send real money. Restore [hidden] explicitly and let it win. */
+[hidden] { display: none !important; }
+
 .dash-pay-card .dash-btn-small {
   display: block;
   width: 100%;

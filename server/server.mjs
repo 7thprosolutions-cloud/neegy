@@ -531,6 +531,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// A last line of defence, and the reason it is here rather than left to
+// Node's default: an unhandled rejection anywhere -- a background payment
+// check, a flaky RPC, a stray await -- terminates the process by default.
+// For a game server that means every live match ends, the host restarts it,
+// and the same thing happens again. Whatever went wrong is nearly always
+// less bad than taking the whole site down for it, so log loudly and keep
+// serving. Anything genuinely unrecoverable will still fail its own request.
+process.on("unhandledRejection", (reason) => {
+  console.error("[fatal-guard] unhandled rejection:", reason?.stack || reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[fatal-guard] uncaught exception:", err?.stack || err);
+});
+
 // Real-time multiplayer rides on the same http server (and therefore the
 // same origin and the same session cookie) at ws://<host>/ws.
 attachGameServer(server);

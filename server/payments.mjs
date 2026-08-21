@@ -245,16 +245,26 @@ export async function buildWalletTransaction(reference, payerAddress) {
 // Without it their SOL is gone and their account never changes.
 export function startPaymentSweep() {
   if (!config.enabled) return null;
+  // The ENTIRE body is guarded, not just the network call. An async
+  // setInterval callback that throws produces an unhandled rejection, and
+  // Node kills the process for one of those -- so a single bad response from
+  // a public RPC endpoint would take the whole game down, restart, and do it
+  // again twenty seconds later. A background task that checks for payments
+  // must never be able to stop people playing.
   const timer = setInterval(async () => {
-    expireStalePayments();
-    // Public RPC endpoints rate limit, and a backlog here is never urgent --
-    // a few at a time is plenty.
-    for (const record of pendingPayments().slice(0, 5)) {
-      try {
-        await checkPayment(record.reference);
-      } catch (err) {
-        console.warn("[pay] sweep error:", err.message);
+    try {
+      expireStalePayments();
+      // Public RPC endpoints rate limit, and a backlog here is never urgent --
+      // a few at a time is plenty.
+      for (const record of pendingPayments().slice(0, 5)) {
+        try {
+          await checkPayment(record.reference);
+        } catch (err) {
+          console.warn("[pay] sweep error:", err.message);
+        }
       }
+    } catch (err) {
+      console.warn("[pay] sweep failed:", err.message);
     }
   }, 20000);
   timer.unref?.();

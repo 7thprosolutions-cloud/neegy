@@ -10,11 +10,25 @@
 
   // ---------- play button ----------
   //
-  // Three states, because sending someone to a sign-in page that cannot work is
+  // Four states, because sending someone to a sign-in page that cannot work is
   // worse than not offering it:
-  //   signed in          -> straight to the dashboard
-  //   backend, signed out-> sign in with X, which lands on the dashboard after
-  //   no backend         -> play as a guest (static hosting, no game server)
+  //   signed in           -> straight to the dashboard
+  //   backend, signed out -> sign in with X, which lands on the dashboard after
+  //   no backend, but the -> send them to the host that does run the server,
+  //   game host answers      so they get the real game rather than a stub
+  //   nothing answers     -> play as a guest against bots
+
+  // Where the Node server actually lives. This matters because neegy.life is
+  // currently a STATIC deploy of this branch: the pages are all there, but
+  // there is no process behind them, so sign-in, real matches and the Upgrades
+  // panel cannot work on that origin. Rather than hand visitors a game with
+  // its multiplayer quietly switched off, the button points at the host that
+  // does run it.
+  //
+  // Self-correcting: the moment this domain is attached to the Web App,
+  // /api/me answers here, the branch below never fires, and everything stays
+  // on one origin. Nothing to remember to undo.
+  var GAME_HOST = "https://chocolate-gull-388433.hostingersite.com";
 
   var buttons = [
     { btn: document.getElementById("playBtn"), label: document.getElementById("playLabel") },
@@ -57,10 +71,21 @@
         }
       })
       .catch(function () {
+        // No backend on this origin. If we are already on the game host then
+        // its server really is down, and a guest bot match is the honest
+        // offer; otherwise send them where the server lives.
+        if (location.origin === GAME_HOST) {
+          setPlay(
+            "/arena3d/dashboard.html",
+            "Play as guest",
+            "Sign-in is offline right now — you can still play against bots."
+          );
+          return;
+        }
         setPlay(
-          "/arena3d/dashboard.html",
-          "Play as guest",
-          "Sign-in is offline right now — you can still play against bots."
+          GAME_HOST + "/arena3d/dashboard.html",
+          "Enter the arena",
+          "Live 1v1, 3v3 and 5v5 matches, X sign-in and upgrades."
         );
       });
   }

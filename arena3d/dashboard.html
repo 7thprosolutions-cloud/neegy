@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena Dashboard</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=35" />
-<link rel="stylesheet" href="/arena3d/dashboard.css?v=35" />
+<link rel="stylesheet" href="/arena3d/style.css?v=36" />
+<link rel="stylesheet" href="/arena3d/dashboard.css?v=36" />
 </head>
 <body class="dash-body">
 
@@ -194,9 +194,12 @@
       <div class="dash-pay-actions">
         <button class="dash-btn-small dash-btn-primary" id="payWalletBtn" hidden>PAY WITH PHANTOM</button>
       </div>
-      <p class="dash-pay-hint">Scan with any Solana wallet, or open it on this device:</p>
+      <p class="dash-pay-hint">Scan this with your Solana wallet</p>
       <div class="dash-pay-actions">
-        <a class="dash-btn-small dash-btn-ghost" id="payLink" href="#">OPEN IN WALLET</a>
+        <!-- The solana: deep link is gone: on desktop there is usually no
+             handler registered for that scheme, so clicking it hangs the tab
+             waiting for an app that never opens. The QR above is the route,
+             and COPY REQUEST covers pasting it into a wallet elsewhere. -->
         <button class="dash-btn-small dash-btn-ghost" id="payCopyBtn">COPY REQUEST</button>
       </div>
       <div class="dash-pay-status" id="payStatus">Waiting for payment...</div>
@@ -227,7 +230,7 @@
     </div>
   </div>
 
-  <script type="module" src="/arena3d/dashboard.js?v=35"></script>
+  <script type="module" src="/arena3d/dashboard.js?v=36"></script>
   <script src="/beta.js?v=1"></script>
 </body>
 </html>

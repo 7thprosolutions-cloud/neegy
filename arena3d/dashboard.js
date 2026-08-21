@@ -1,10 +1,10 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=35";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=35";
-import * as net from "/arena3d/net.js?v=35";
-import { qrSvg } from "/arena3d/qr.js?v=35";
+} from "/arena3d/profile.js?v=36";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=36";
+import * as net from "/arena3d/net.js?v=36";
+import { qrSvg } from "/arena3d/qr.js?v=36";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -48,6 +48,8 @@ const payOverlay = document.getElementById("payOverlay");
 const payTitle = document.getElementById("payTitle");
 const payAmount = document.getElementById("payAmount");
 const payQr = document.getElementById("payQr");
+// Removed from the markup: a solana: deep link has no handler on most
+// desktops, so it hung the tab. Looked up defensively in case it returns.
 const payLink = document.getElementById("payLink");
 const payCopyBtn = document.getElementById("payCopyBtn");
 const payStatusEl = document.getElementById("payStatus");
@@ -338,7 +340,7 @@ async function beginPurchase(product) {
   }
 
   activeInvoice = invoice;
-  payLink.href = invoice.url;
+  if (payLink) payLink.href = invoice.url;
 
   // A `solana:` request carries no cluster. On devnet that is a way to lose
   // real money: a wallet set to mainnet would read this QR, build a perfectly
@@ -353,10 +355,10 @@ async function beginPurchase(product) {
   // anyone reading a warning.
   const testMoney = !payConfig.live;
   document.querySelector(".dash-pay-hint").textContent = WALLET_BUTTON_ENABLED
-    ? "Scan with any Solana wallet, or open it on this device:"
-    : "Scan this with your Solana wallet, or open it on this device:";
+    ? "Or scan this with any Solana wallet"
+    : "Scan this with your Solana wallet";
   payQr.hidden = testMoney;
-  payLink.hidden = testMoney;
+  if (payLink) payLink.hidden = testMoney;
   payCopyBtn.hidden = testMoney;
   document.querySelector(".dash-pay-hint").hidden = testMoney;
 

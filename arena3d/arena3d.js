@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=23";
-import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=23";
-import { submitMatchResult } from "/arena3d/account.js?v=23";
-import * as MP from "/arena3d/mp.js?v=23";
-import { mp } from "/arena3d/mp.js?v=23";
+import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=24";
+import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=24";
+import { submitMatchResult } from "/arena3d/account.js?v=24";
+import * as MP from "/arena3d/mp.js?v=24";
+import { mp } from "/arena3d/mp.js?v=24";
 
 // ---------- DOM ----------
 const canvas = document.getElementById("game");
@@ -23,6 +23,8 @@ const redAliveCountEl = document.getElementById("redAliveCount");
 const blueTeamSizeEl = document.getElementById("blueTeamSize");
 const redTeamSizeEl = document.getElementById("redTeamSize");
 const spectatorNote = document.getElementById("spectatorNote");
+const extraLifeBtn = document.getElementById("extraLifeBtn");
+const extraLifeCount = document.getElementById("extraLifeCount");
 const revivePrompt = document.getElementById("revivePrompt");
 const reviveBtn = document.getElementById("reviveBtn");
 const reviveCount = document.getElementById("reviveCount");
@@ -1397,9 +1399,10 @@ function updateAI(f, dt) {
 // ---------- input ----------
 window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
-  // Reachable without letting go of the mouse, and only live while the prompt
-  // is actually up -- R does nothing the rest of the time.
-  if (k === "r") requestRevive();
+  // One key for one item. R spends it whichever way is currently legal: a
+  // refill while you are hurt and standing, or a revive inside the window
+  // after a death too fast to react to. It does nothing the rest of the time.
+  if (k === "r") useExtraLife();
   keys.add(k);
 });
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
@@ -1786,6 +1789,7 @@ function update(dt) {
 
   structCountEl.textContent = `${structures.length}/${MAX_STRUCTURES}`;
   hpFillYou.style.width = Math.max(0, player.hp) + "%";
+  updateExtraLifeButton();
 
   const enemyTeam = player.team === TEAM_BLUE ? TEAM_RED : TEAM_BLUE;
   let enemyHpSum = 0, blueAlive = 0, redAlive = 0;
@@ -1950,6 +1954,7 @@ function showOverlay(title, subtitle, buttonText, showDashboardBtn) {
   buildHint.classList.add("hidden");
   spectatorNote.classList.add("hidden");
   revivePrompt.classList.add("hidden");
+  extraLifeBtn.classList.add("hidden");
   debugReadout.classList.add("hidden");
   lockHint && lockHint.classList.add("hidden");
   crosshair.style.display = "none";
@@ -2038,6 +2043,41 @@ function clientIdOf(entityId) {
 // the draining bar, so it must come from the message, not a constant here.
 let reviveWindowTotalMs = 7000;
 
+// Three states, updated every frame alongside the health bar it sits under:
+// gone (no life to spend, or already spent this match), locked (holding one but
+// not hurt enough yet), ready (press it). Showing it locked rather than hiding
+// it is deliberate -- the player learns the button exists, and where, before
+// the moment they are too busy to go looking for it.
+function updateExtraLifeButton() {
+  if (!MP.hasExtraLife() || !player || !player.alive) {
+    extraLifeBtn.classList.add("hidden");
+    return;
+  }
+  const ready = MP.canRefill(player.hp);
+  extraLifeBtn.classList.remove("hidden");
+  extraLifeBtn.classList.toggle("ready", ready);
+  extraLifeBtn.classList.toggle("locked", !ready);
+  extraLifeCount.textContent = `x${mp.extraLives}`;
+  extraLifeBtn.title = ready
+    ? "Refill to full health (R)"
+    : `Available at ${mp.lowHealth} health or below`;
+}
+
+function useExtraLife() {
+  if (!player) return;
+  // Both routes spend the same credit under the same one-per-match rule, so
+  // either being legal is enough.
+  if (!MP.canRefill(player.hp) && !MP.canRevive()) return;
+  extraLifeBtn.classList.add("hidden");
+  hideRevivePrompt();
+  MP.requestExtraLife();
+}
+
+extraLifeBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  useExtraLife();
+});
+
 function showRevivePrompt() {
   if (!MP.canRevive() || !player || player.alive) return;
   reviveCount.textContent = `(${mp.extraLives} left)`;
@@ -2054,8 +2094,7 @@ function hideRevivePrompt() {
 function requestRevive() {
   if (revivePrompt.classList.contains("hidden") || reviveBtn.disabled) return;
   reviveBtn.disabled = true;
-  reviveBtn.textContent = "…";
-  MP.requestRevive();
+  MP.requestExtraLife();
 }
 
 reviveBtn.addEventListener("click", requestRevive);
@@ -2068,6 +2107,9 @@ function applyNetReviveWindow(msg) {
 // Anyone can be revived, not just us -- a squadmate coming back has to reappear
 // on our screen too, or we would keep shooting at a body the server considers
 // alive.
+// Covers both routes. `wasDead` is the server's word for which one it was --
+// a refill only needs the health bar to jump, while a revive has a whole death
+// transition to undo.
 function applyNetRevived(msg) {
   const f = MP.fighterFor(msg.id);
   if (!f) return;
@@ -2075,16 +2117,17 @@ function applyNetRevived(msg) {
   f.hp = msg.hp;
   f.hitFlash = 0;
   hideRevivePrompt();
-  reviveBtn.textContent = "USE EXTRA LIFE ";
-  reviveBtn.appendChild(reviveCount);
+  reviveBtn.disabled = false;
   if (f !== player) return;
 
-  // Back on our feet: undo everything the death transition did.
-  spectatorMode = false;
-  spectatorNote.classList.add("hidden");
-  buildHint.classList.remove("hidden");
-  crosshair.style.display = "block";
-  updateLockHint();
+  if (msg.wasDead) {
+    // Back on our feet: undo everything the death transition did.
+    spectatorMode = false;
+    spectatorNote.classList.add("hidden");
+    buildHint.classList.remove("hidden");
+    crosshair.style.display = "block";
+    updateLockHint();
+  }
 }
 
 function applyNetShot(msg) {
@@ -2170,7 +2213,17 @@ async function startGame() {
       onRevived: applyNetRevived,
       onShot: applyNetShot,
       onMatchLost: applyNetMatchLost,
-      onError: (message) => console.warn("multiplayer:", message),
+      onError: (message) => {
+        // requestExtraLife() marks the life spent optimistically so a
+        // double-click cannot ask twice. A refusal has to hand that back, or
+        // the button vanishes for the rest of the match over an attempt that
+        // never cost anything.
+        if (mp.revivedThisMatch && /extra li|health|match/i.test(message)) {
+          mp.revivedThisMatch = false;
+          reviveBtn.disabled = false;
+        }
+        console.warn("multiplayer:", message);
+      },
     });
     if (joined) await MP.waitForRoster();
     startBtn.disabled = false;

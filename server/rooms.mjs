@@ -361,30 +361,46 @@ export function applyHit(room, client, { target, damage }) {
   return events;
 }
 
-// Spends one extra life to put a dead player back in the fight. Server-side
-// because health and death are: a client that could revive itself would be
-// able to do so for free and forever.
+// Below this, an extra life can be spent while still standing. The cap exists
+// to protect the player from their own click: without it someone taps the
+// button at 96 health, burns a paid item for four points, and is rightly
+// annoyed. It is enforced here and not only in the HUD, because the HUD is not
+// the thing that owns health.
+const LOW_HEALTH = 50;
+
+// Spends one extra life, either to refill a player who is in trouble or to put
+// one who is already down back on their feet. Server-side because health and
+// death are: a client that could heal itself would do so for free and forever.
 //
-// One per match, enforced per client rather than per entity, so leaving and
-// rejoining cannot buy a second go on the same round.
-export function reviveOwnEntity(room, client) {
+// Two entry conditions, deliberately one function and one balance. Hurt but
+// alive is the path players actually aim for -- you see the bar go red and you
+// press the button. Dead is the safety net for the gunfight that took you from
+// healthy to gone with no moment in between, which in a shooter is common
+// enough that leaving it out would strand people who paid.
+//
+// One per match either way, enforced per client rather than per entity, so
+// leaving and rejoining cannot buy a second go on the same round.
+export function spendExtraLife(room, client) {
   if (room.state !== "playing") return { error: "The match is not running." };
   if (!client.playerId) return { error: "Sign in with X to use extra lives." };
   if (room.revived.has(client.id)) return { error: "You have already used an extra life this match." };
 
   const ent = [...room.entities.values()].find((e) => e.ownerId === client.id && !e.isBot);
   if (!ent) return { error: "You are not in this match." };
-  if (ent.alive) return { error: "You are still alive." };
+  if (ent.alive && ent.hp > LOW_HEALTH) {
+    return { error: `Extra lives kick in at ${LOW_HEALTH} health or below.` };
+  }
 
   const remaining = spendEntitlement(client.playerId, "extraLives");
   if (remaining === null) return { error: "No extra lives left." };
 
+  const wasDead = !ent.alive;
   room.revived.add(client.id);
   ent.hp = 100;
   ent.alive = true;
-  // Their team is back in the fight, so the pending result is void.
+  // Their team is back in the fight, so any pending result is void.
   room.reviveWindowEndsAt = 0;
-  return { entityId: ent.id, remaining };
+  return { entityId: ent.id, remaining, wasDead };
 }
 
 // Is there anyone on this team who could still spend an extra life? Gating the
@@ -463,4 +479,4 @@ function round(n) {
   return Math.round((n || 0) * 100) / 100;
 }
 
-export { TICK_MS, TEAM_BLUE, TEAM_RED, REVIVE_WINDOW_MS };
+export { TICK_MS, TEAM_BLUE, TEAM_RED, REVIVE_WINDOW_MS, LOW_HEALTH };

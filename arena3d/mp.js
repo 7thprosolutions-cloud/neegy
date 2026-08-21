@@ -13,7 +13,7 @@
 //     by interpolating toward the last snapshot the server sent.
 //   - Health, damage, deaths and the end of the match are decided by the
 //     server. A local bullet hit reports a claim and waits to be told.
-import * as net from "/arena3d/net.js?v=23";
+import * as net from "/arena3d/net.js?v=24";
 
 export const mp = {
   active: false,
@@ -35,6 +35,10 @@ export const mp = {
   // Set while the server is holding the result open for a revive.
   reviveWindowUntil: 0,
   revivedThisMatch: false,
+  // The health at or below which the server will accept a spend. Sent in
+  // `welcome` rather than hardcoded, so the button cannot light up at a health
+  // the server would refuse.
+  lowHealth: 50,
   // true while we are asking the server whether our match still exists after a
   // reconnect (see joinMatch)
   resyncing: false,
@@ -71,7 +75,10 @@ export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot,
 
   // The balance is only ever told to us, never counted here -- a client that
   // tracked its own would drift the moment a second tab spent one.
-  net.on("welcome", (msg) => { mp.extraLives = msg.you?.entitlements?.extraLives ?? mp.extraLives; });
+  net.on("welcome", (msg) => {
+    mp.extraLives = msg.you?.entitlements?.extraLives ?? mp.extraLives;
+    mp.lowHealth = msg.lowHealth ?? mp.lowHealth;
+  });
   net.on("entitlements", (msg) => { mp.extraLives = msg.entitlements?.extraLives ?? mp.extraLives; });
 
   // The losing side has a few seconds to buy back in before this becomes the
@@ -215,14 +222,27 @@ export function applyRemoteTransforms(fighters, dt) {
   }
 }
 
-// Whether it is worth putting the prompt on screen at all. The server still
-// has the final say -- this only avoids offering a button that would be
-// refused, which reads as broken.
-export function canRevive() {
-  return mp.active && mp.extraLives > 0 && !mp.revivedThisMatch && mp.reviveWindowUntil > performance.now();
+// Do we hold a life we could still spend in this match at all? Independent of
+// whether this exact instant is a legal moment to spend it -- that is the two
+// functions below.
+export function hasExtraLife() {
+  return mp.active && mp.extraLives > 0 && !mp.revivedThisMatch;
 }
 
-export function requestRevive() {
+// Alive and hurt enough: the path players aim for.
+export function canRefill(hp) {
+  return hasExtraLife() && hp > 0 && hp <= mp.lowHealth;
+}
+
+// Already down, inside the window the server is holding open: the safety net
+// for a death too fast to react to.
+export function canRevive() {
+  return hasExtraLife() && mp.reviveWindowUntil > performance.now();
+}
+
+// One message for both. The server decides which of the two it was and says so
+// in the `revived` broadcast, so the client never has to reason about it.
+export function requestExtraLife() {
   if (!mp.active) return;
   mp.revivedThisMatch = true; // optimistic, so a double-click cannot ask twice
   net.revive();

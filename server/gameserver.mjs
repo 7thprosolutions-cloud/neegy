@@ -20,7 +20,7 @@ import { sessionPlayer } from "./store.mjs";
 import {
   rooms, createRoom, joinRoom, leaveRoom, listRooms, roomStateMessage,
   beginCountdown, startMatch, applyEntityStates, applyHit, checkMatchOver,
-  snapshot, sweepRooms, ensurePermanentRooms, reviveOwnEntity, TICK_MS,
+  snapshot, sweepRooms, ensurePermanentRooms, spendExtraLife, TICK_MS, LOW_HEALTH,
 } from "./rooms.mjs";
 import { entitlementsOf } from "./store.mjs";
 
@@ -205,6 +205,9 @@ function sendWelcome(client) {
       handle: client.handle, avatar: client.avatar, signedIn: client.signedIn,
       entitlements: client.playerId ? entitlementsOf(client.playerId) : { extraLives: 0, privateGames: 0 },
     },
+    // Sent rather than hardcoded in the HUD, so the button can never light up
+    // at a health the server would refuse.
+    lowHealth: LOW_HEALTH,
     rooms: listRooms(),
   });
 }
@@ -313,11 +316,13 @@ function handle(client, msg, conn) {
     case "revive": {
       const room = client.room;
       if (!room) return fail(client, "You are not in a match.");
-      const result = reviveOwnEntity(room, client);
+      const result = spendExtraLife(room, client);
       if (result.error) return fail(client, result.error);
-      // Everyone needs to know, or the revived player would be walking around
-      // while other screens still show them dead and unshootable.
-      broadcast(room, { t: "revived", id: result.entityId, hp: 100 });
+      // Everyone needs to know. A refill matters to whoever was shooting them
+      // (the health bar they were whittling down just reset), and a revive
+      // matters even more -- otherwise other screens keep showing a body that
+      // the server considers alive and shootable.
+      broadcast(room, { t: "revived", id: result.entityId, hp: 100, wasDead: result.wasDead });
       send(client, { t: "entitlements", entitlements: entitlementsOf(client.playerId) });
       return;
     }

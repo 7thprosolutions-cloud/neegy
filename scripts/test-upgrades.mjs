@@ -215,6 +215,74 @@ check("declining the window costs nothing", meDeclined.player.extraLives === liv
 decliner.socket.destroy();
 foe.socket.destroy();
 
+// ---------- spending a life while still standing ----------
+//
+// The route players actually aim for: you watch the bar go red and press the
+// button before anything kills you. The death window above is only the safety
+// net for a burst that gave you no such moment.
+
+const stander = await connect(SID);
+const shooter = await connect("");
+stander.send({ t: "hello", tabId: "refill-1" });
+shooter.send({ t: "hello", tabId: "refill-2" });
+await wait(400);
+const livesAtStart = last(stander, "welcome")?.you?.entitlements?.extraLives;
+check("welcome carries the low-health threshold", last(stander, "welcome")?.lowHealth === 50,
+  `lowHealth=${last(stander, "welcome")?.lowHealth}`);
+
+// 3v3 on purpose: in a 1v1 this death would wipe the team and end the match,
+// and the last check below would be answered by "the match is not running"
+// instead of by the rule it is meant to prove. The empty slots become bots the
+// host simulates, which keeps the team alive.
+stander.send({ t: "create", name: "Refill Test", mode: "3v3" });
+await wait(300);
+shooter.send({ t: "join", roomId: last(stander, "joined")?.roomId });
+await wait(300);
+stander.send({ t: "start" });
+await wait(4200);
+const standEnt = last(stander, "start")?.owned?.find((o) => !o.isBot)?.entityId;
+
+// At full health the spend must be refused -- otherwise a stray click burns a
+// paid item for nothing.
+stander.log.length = 0;
+stander.send({ t: "revive" });
+await wait(500);
+check("refused at full health", Boolean(last(stander, "error")), last(stander, "error")?.message);
+const meFull = await fetch(`http://127.0.0.1:${PORT}/api/me`, { headers: { Cookie: `neegy_sid=${SID}` } }).then((r) => r.json());
+check("refusal at full health charged nothing", meFull.player.extraLives === livesAtStart, `extraLives=${meFull.player.extraLives}`);
+
+// Now take real damage, down to at-or-below the threshold but still alive.
+shooter.send({ t: "hit", target: standEnt, damage: 60 });
+await wait(500);
+const hurt = last(stander, "damage");
+check("hurt but alive", hurt?.hp === 40 && !last(stander, "death"), `hp=${hurt?.hp}`);
+
+stander.log.length = 0;
+stander.send({ t: "revive" });
+await wait(600);
+const refilled = last(stander, "revived");
+check("refill while standing works", refilled?.hp === 100, refilled ? `hp=${refilled.hp}` : last(stander, "error")?.message);
+check("refill is flagged as not-a-death", refilled?.wasDead === false, `wasDead=${refilled?.wasDead}`);
+
+const meRefilled = await fetch(`http://127.0.0.1:${PORT}/api/me`, { headers: { Cookie: `neegy_sid=${SID}` } }).then((r) => r.json());
+check("refill spent one life", meRefilled.player.extraLives === livesAtStart - 1, `extraLives=${meRefilled.player.extraLives}`);
+
+// The one-per-match limit is shared between the two routes: having refilled,
+// dying must not then also offer a revive.
+shooter.send({ t: "hit", target: standEnt, damage: 60 });
+await wait(250);
+shooter.send({ t: "hit", target: standEnt, damage: 60 });
+await wait(600);
+stander.log.length = 0;
+stander.send({ t: "revive" });
+await wait(500);
+const sharedError = last(stander, "error")?.message || "";
+check("refill and revive share one allowance", /already used an extra life/i.test(sharedError), sharedError);
+const meAfter = await fetch(`http://127.0.0.1:${PORT}/api/me`, { headers: { Cookie: `neegy_sid=${SID}` } }).then((r) => r.json());
+check("the refused second spend charged nothing", meAfter.player.extraLives === livesAtStart - 1, `extraLives=${meAfter.player.extraLives}`);
+stander.socket.destroy();
+shooter.socket.destroy();
+
 owner.socket.destroy();
 friend.socket.destroy();
 const failed = results.filter((r) => !r.pass);

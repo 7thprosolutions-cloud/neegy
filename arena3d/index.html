@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena 3D (V3 preview)</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=23" />
+<link rel="stylesheet" href="/arena3d/style.css?v=24" />
 <script type="importmap">
 {
   "imports": {
@@ -24,6 +24,15 @@
     <div class="hp-block you">
       <div class="hp-name">YOU</div>
       <div class="hp-track"><div id="hpFillYou" class="hp-fill you"></div></div>
+      <!-- Sits directly under your own health bar, which is where your eyes
+           already are when it matters. Hidden entirely unless you hold a life
+           and have not spent one this match; dimmed until you are hurt enough
+           for the server to accept it. -->
+      <button id="extraLifeBtn" class="extra-life-btn hidden">
+        <span class="extra-life-icon">&#10010;</span>
+        <span class="extra-life-label">EXTRA LIFE</span>
+        <span class="extra-life-count" id="extraLifeCount"></span>
+      </button>
     </div>
     <div class="hp-block rival">
       <div class="hp-name">ENEMY TEAM</div>
@@ -72,6 +81,6 @@
     <p class="footnote">V3 preview &mdash; 3D build, not linked from the live site yet. Character is a flat billboard sprite, not a 3D model.</p>
   </div>
 
-  <script type="module" src="/arena3d/arena3d.js?v=23"></script>
+  <script type="module" src="/arena3d/arena3d.js?v=24"></script>
 </body>
 </html>

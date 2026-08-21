@@ -374,3 +374,56 @@ html, body {
   color: #fff8e680;
 }
 .revive-hint strong { color: #ffe9a8; }
+
+/* ---------- extra life, under your own health bar ----------
+   .hud sets pointer-events:none so the HUD never eats clicks meant for the
+   arena; this one control has to opt back in or it could not be pressed. */
+.extra-life-btn {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  border: 2px solid #2b2010;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 0 #b5762a;
+}
+
+.extra-life-btn.hidden { display: none; }
+.extra-life-btn:active { transform: translateY(2px); box-shadow: 0 0 0 #b5762a; }
+
+/* Visible but plainly not yet usable: the player learns the button exists,
+   and where it is, before the moment they need it. */
+.extra-life-btn.locked {
+  background: rgba(20, 16, 8, 0.55);
+  color: rgba(255, 248, 230, 0.5);
+  box-shadow: none;
+  cursor: default;
+}
+
+/* Armed. Pulsing is justified here and almost nowhere else: it appears only
+   when you are a couple of hits from dying, and it has to win attention
+   against a firefight. */
+.extra-life-btn.ready {
+  animation: extraLifePulse 0.9s ease-in-out infinite;
+}
+
+@keyframes extraLifePulse {
+  0%, 100% { box-shadow: 0 2px 0 #b5762a, 0 0 0 0 rgba(255, 179, 71, 0.55); }
+  50%      { box-shadow: 0 2px 0 #b5762a, 0 0 0 7px rgba(255, 179, 71, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .extra-life-btn.ready { animation: none; outline: 2px solid #ffe9a8; }
+}
+
+.extra-life-icon { font-size: 13px; line-height: 1; }
+.extra-life-count { opacity: 0.75; font-weight: normal; }

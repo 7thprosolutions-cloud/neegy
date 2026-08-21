@@ -147,7 +147,7 @@ Decisions already made with the user:
   **This is also the manual-repair path if a real payment ever fails to credit.**
 - `/api/me` and the WebSocket `welcome` both carry balances.
 
-**Now VERIFIED — `scripts/test-upgrades.mjs` scores 18/18.** (It needs a seeded
+**Now VERIFIED — `scripts/test-upgrades.mjs` scores 27/27.** (It needs a seeded
 fixture player; the exact setup commands are in the file's header comment.)
 Covered: private room creation, the `isPrivate` flag, the password never
 reaching any client, wrong/right password, the credit spent at countdown, the
@@ -200,20 +200,44 @@ from reading the code.
   hides them entirely and nudges to sign in; showing "0 extra lives" to someone
   who has simply not signed in reads as a broken balance.
 
-**In game (`?room=`)**
-- On the `reviveWindow` message, a centred prompt offers **USE EXTRA LIFE (N
-  left)** with a bar draining against the server's own deadline. Press **R** or
-  click.
-- Accepting restores the fighter, exits spectator mode, and the match carries
-  on. Verified end to end: browser died, clicked, `revived` broadcast reached
-  the other player, match did **not** end, balance went 10 → 9.
-- Letting it expire is also verified: the prompt disappears and the match is
-  called, charging nothing.
+**In game (`?room=`) — two ways to spend one life, one allowance**
+
+The primary route is a button **directly under your own health bar**, pressed
+while you are still standing. This is the user's design and it is the better
+one: you watch the bar go red and press the button, which is where your eyes
+already are. Three states, updated every frame:
+
+- **gone** — no life to spend, or already spent one this match
+- **locked** — holding one, but above the health threshold (tooltip says why)
+- **ready** — pulsing, pressable; **R** or click; refills to 100
+
+The threshold is **50 health**, enforced on the server, not just in the HUD.
+Without it a stray click at 96 health burns a paid item for four points. The
+number travels in `welcome` as `lowHealth` so the button cannot light up at a
+health the server would refuse.
+
+The post-death prompt is kept as the **safety net**, because in a shooter you
+are often not *about to* die, you are simply dead — a close-range burst gives
+no moment to press anything, and a player who cannot spend what they paid for
+will say so. It fires on `reviveWindow`, shows a bar draining against the
+server's own deadline, and takes the same **R**.
+
+Both routes send the same `revive` message, spend the same credit, and share
+one allowance per match. The server decides which happened and reports it as
+`wasDead` in the `revived` broadcast — only a real death has a spectator-mode
+transition to undo.
+
+Verified in a real browser, both routes:
+- refill: wounded to 40 → button armed → clicked → bar 40% → 100%, button gone,
+  match continued, balance 10 → 9, and the opponent received the broadcast so
+  their view of the health bar reset too
+- revive: died → prompt → clicked → back on our feet, match did **not** end
+- expiry: prompt vanished, match called, nothing charged
 
 Two deliberate choices worth knowing:
-- The prompt **releases pointer lock**, because a button that cannot be clicked
-  is worse than one click to re-lock afterwards. The existing "CLICK TO LOOK
-  AROUND" hint covers the way back in, and **R** works without releasing.
+- The death prompt **releases pointer lock**, because a button that cannot be
+  clicked is worse than one click to re-lock afterwards. The HUD button does
+  not need to — `.hud` is `pointer-events:none` and the button opts back in.
 - The countdown length comes from the server's `ms`, never a constant in the
   client, so the bar can only ever promise less time than the server honours.
 
@@ -295,7 +319,7 @@ between clients. See the authority split in `server/README-multiplayer.md`.
 
 ## Cache-busting gotcha (cost real time this session)
 
-`character.js`/`profile.js` were originally imported from `arena3d.js`/`dashboard.js` with **no** `?v=` query param at all, and the `?v=1` on the top-level `<script>` tags was never bumped across many edits. The static dev server (`npx serve`) and/or the browser cached these aggressively, so several rounds of genuinely-correct fixes to `character.js` may have silently never reached the browser being tested. Every internal import now has a version param — **always bump every `?v=N` occurrence across `index.html`, `dashboard.html`, `arena3d.js`, `dashboard.js`, `character.js`'s own imports, etc. together, in lockstep, on every edit** (currently `v=23`; `grep -rn '?v=' --include=*.js --include=*.html .` finds them all), and tell the user to hard-refresh, not just reload.
+`character.js`/`profile.js` were originally imported from `arena3d.js`/`dashboard.js` with **no** `?v=` query param at all, and the `?v=1` on the top-level `<script>` tags was never bumped across many edits. The static dev server (`npx serve`) and/or the browser cached these aggressively, so several rounds of genuinely-correct fixes to `character.js` may have silently never reached the browser being tested. Every internal import now has a version param — **always bump every `?v=N` occurrence across `index.html`, `dashboard.html`, `arena3d.js`, `dashboard.js`, `character.js`'s own imports, etc. together, in lockstep, on every edit** (currently `v=24`; `grep -rn '?v=' --include=*.js --include=*.html .` finds them all), and tell the user to hard-refresh, not just reload.
 
 ## What's left (explicitly out of scope so far, by design)
 

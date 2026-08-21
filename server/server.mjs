@@ -28,7 +28,23 @@ const env = loadEnv();
 // restarted between my two requests", which is exactly the question when
 // records go missing.
 const STARTED_AT = Date.now();
-const PORT = Number(env.PORT || 5174);
+// Which port to listen on, and it is worth spelling out why this is not just
+// `env.PORT`.
+//
+// A managed host runs a reverse proxy in front of this process and forwards to
+// a port it decides. If the app listens somewhere else, the proxy has nothing
+// to talk to and every request is a 503 -- while the app's own logs show a
+// perfectly healthy startup, because from in here nothing is wrong. That is a
+// genuinely confusing failure, and it happened: editing environment variables
+// in the panel dropped the platform-injected PORT, the app fell back to its
+// development default, and the site went dark with clean logs.
+//
+// So: accept the usual spellings rather than only one, and if none is present
+// say so at startup instead of silently using a number that only makes sense
+// on a laptop.
+const PORT_SOURCE = ["PORT", "APP_PORT", "SERVER_PORT", "NODE_PORT", "HTTP_PORT"]
+  .find((name) => env[name] && Number(env[name]) > 0);
+const PORT = Number(PORT_SOURCE ? env[PORT_SOURCE] : 5174);
 // Behind a reverse proxy on a VPS you usually want to bind loopback only and
 // let the proxy face the internet; 0.0.0.0 is right when this IS the edge.
 const HOST = env.HOST || "0.0.0.0";
@@ -577,6 +593,17 @@ server.on("error", (err) => {
 server.listen(PORT, HOST, () => {
   const configured = Boolean(env.X_CONSUMER_KEY && env.X_CONSUMER_SECRET);
   console.log(`Neegy server on http://localhost:${PORT}`);
+  if (PORT_SOURCE) {
+    console.log(`  port:          ${PORT} (from ${PORT_SOURCE})`);
+  } else {
+    // Loud, because the symptom otherwise looks like a crash rather than a
+    // misdirected proxy: 503 from outside, clean logs from inside.
+    console.warn("  port:          WARNING - no PORT provided, defaulting to " + PORT);
+    console.warn("                 On a managed host this is usually wrong: the proxy");
+    console.warn("                 forwards to a port it assigns, so if that is not");
+    console.warn("                 this one, every request 503s while these logs look");
+    console.warn("                 perfectly healthy. Set PORT in the panel.");
+  }
   console.log(`  dashboard: http://localhost:${PORT}/arena3d/dashboard.html`);
   console.log(`  X credentials: ${configured ? "loaded" : "MISSING -- set X_CONSUMER_KEY / X_CONSUMER_SECRET"}`);
   console.log(`  multiplayer:   ws://localhost:${PORT}/ws`);

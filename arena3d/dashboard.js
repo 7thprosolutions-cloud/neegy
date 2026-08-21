@@ -1,10 +1,10 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=31";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=31";
-import * as net from "/arena3d/net.js?v=31";
-import { qrSvg } from "/arena3d/qr.js?v=31";
+} from "/arena3d/profile.js?v=32";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=32";
+import * as net from "/arena3d/net.js?v=32";
+import { qrSvg } from "/arena3d/qr.js?v=32";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -485,11 +485,36 @@ async function payWithWallet() {
     if (!res.ok) throw new Error(body.error || "Could not prepare the transaction.");
 
     step("Approve the payment in Phantom...");
-    await withTimeout(
-      provider.request({ method: "signAndSendTransaction", params: { message: body.message } }),
-      120000,
-      "No answer from the wallet. If Phantom did not open, click its icon in your toolbar."
-    );
+    // Wallets disagree about what `message` means here: some want the
+    // serialized message, some the whole unsigned transaction. Guessing wrong
+    // fails with "Reached end of buffer unexpectedly", which names the symptom
+    // and not the cause. The transaction form is what Phantom wants, so try it
+    // first and fall back rather than pinning ourselves to one wallet's
+    // reading. A rejected payload signs nothing, so a retry costs nothing.
+    const attempts = [body.transaction, body.message].filter(Boolean);
+    let lastError = null;
+    let sent = false;
+    for (const payload of attempts) {
+      try {
+        await withTimeout(
+          provider.request({ method: "signAndSendTransaction", params: { message: payload } }),
+          120000,
+          "No answer from the wallet. If Phantom did not open, click its icon in your toolbar."
+        );
+        sent = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        const msg = err?.message || String(err);
+        // A decline is the player's decision -- do not re-prompt them with the
+        // other encoding.
+        if (/user rejected|declined|4001|cancell?ed/i.test(msg)) throw err;
+        // Anything that is not a decoding complaint is not worth retrying.
+        if (!/buffer|deserial|decode|invalid|malformed|unexpected/i.test(msg)) throw err;
+        console.warn("wallet rejected one encoding, trying the other:", msg);
+      }
+    }
+    if (!sent) throw lastError || new Error("The wallet could not read the transaction.");
 
     walletSubmitted = true;
     step("Sent - waiting for the network to confirm...");

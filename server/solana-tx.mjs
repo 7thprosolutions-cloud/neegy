@@ -82,4 +82,19 @@ export function buildTransferMessageBase58(args) {
   return encodeBase58(buildTransferMessage(args));
 }
 
+// The same thing as an unsigned TRANSACTION: the signature array with one
+// empty 64-byte slot for the payer, then the message.
+//
+// This distinction is not cosmetic, and getting it wrong produces an error
+// that does not name it. Handed a bare message, a wallet expecting a
+// transaction reads the leading 1 as "one signature follows", eats the next 64
+// bytes as that signature, then tries to parse a message out of what remains
+// and runs off the end -- "Reached end of buffer unexpectedly". The bytes are
+// perfectly valid; they are just being read as the wrong thing.
+export function buildTransferTransactionBase58(args) {
+  const message = buildTransferMessage(args);
+  const emptySignature = Buffer.alloc(64); // the wallet fills this in
+  return encodeBase58(Buffer.concat([shortVec(1), emptySignature, message]));
+}
+
 export { shortVec, compactArray };

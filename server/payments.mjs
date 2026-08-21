@@ -17,7 +17,7 @@
 // this invoice, without us ever needing to know the payer's address up front.
 import crypto from "node:crypto";
 import { encodeBase58, isValidSolanaAddress } from "./base58.mjs";
-import { buildTransferMessageBase58 } from "./solana-tx.mjs";
+import { buildTransferMessageBase58, buildTransferTransactionBase58 } from "./solana-tx.mjs";
 import {
   createPayment, getPayment, pendingPayments, markPaid, expireStalePayments,
   grantEntitlement, ENTITLEMENTS, signatureAlreadyUsed,
@@ -225,14 +225,20 @@ export async function buildWalletTransaction(reference, payerAddress) {
   // A blockhash goes stale in about a minute, so it is fetched per attempt
   // rather than cached with the invoice.
   const { blockhash } = (await rpc("getLatestBlockhash", [{ commitment: "finalized" }])).value;
+  const args = {
+    payer: payerAddress,
+    recipient: config.treasury,
+    reference: record.reference,
+    lamports: record.lamports,
+    blockhash,
+  };
+  // Both encodings of the same payment. Wallets disagree about which one
+  // `signAndSendTransaction` wants, and the failure when you guess wrong is a
+  // deserialization error that does not say so -- so send both and let the
+  // page try the transaction first and fall back.
   return {
-    message: buildTransferMessageBase58({
-      payer: payerAddress,
-      recipient: config.treasury,
-      reference: record.reference,
-      lamports: record.lamports,
-      blockhash,
-    }),
+    transaction: buildTransferTransactionBase58(args),
+    message: buildTransferMessageBase58(args),
     blockhash,
     lamports: record.lamports,
     recipient: config.treasury,

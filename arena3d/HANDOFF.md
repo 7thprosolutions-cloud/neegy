@@ -11,7 +11,7 @@ Read this file first before touching anything in `arena3d/`. It supersedes the o
 - **`server/` (repo root, not in `arena3d/`)** — a real zero-dependency Node backend: `server/server.mjs` serves the static site *and* the API from one origin (run `node server/server.mjs`, port 5174, replaces `npx serve` for anything auth-related). `oauth1.mjs` is a from-scratch OAuth 1.0a signer (validated against X's canonical test vector via `server/_selftest.mjs`), `xauth.mjs` is the three-legged "Sign in with X" flow, `store.mjs` is the JSON-file player/session store. **See `server/README-auth.md`** for endpoints, configuration, and the app-type/PIN-mode situation — read it before touching auth.
 - **`arena3d/account.js`** — the client half. Wraps `/api/me`, `/api/logout`, `/api/leaderboard`, `/api/match-result`, and **degrades to the old localStorage-only behavior whenever no backend answers**, so the game still works on a plain static host. Backend detection is a *positive handshake* (200 + a `player` key), deliberately not a content-type check — `npx serve` returns its 404 as `application/json` when the request asks for JSON, which reads as a live backend and puts a dead "Sign in with X" link on a static page. That exact bug was hit and fixed during this work.
 - **Multiplayer (`server/ws.mjs`, `server/rooms.mjs`, `server/gameserver.mjs`, `arena3d/net.js`, `arena3d/mp.js`)** — real cross-browser play over a WebSocket on the same origin as the site (`ws://<host>/ws`). **Read `server/README-multiplayer.md` before touching any of it** — it has the wire protocol, the authority split, and the three non-obvious design decisions (host-simulated bot fill, reconnect adoption, and the frame-stall watchdog) that are each there for a specific reason someone would otherwise "simplify" away. Short version: the server owns rooms/teams/health/damage/deaths/scoring; clients own their own movement and report it. `ws.mjs` is a hand-written RFC 6455 server (no `ws` dependency — this repo gitignores `package.json`, so npm state is untracked and a dependency is a deploy hazard).
-- **Cache-busting**: every internal script/module import now carries a `?v=N` query param (bumped to `v=17` as of this writing) — **bump it on every future edit to `character.js`/`profile.js`/`arena3d.js`/`dashboard.js`**, or the static dev server (`npx serve`) can silently keep serving a stale cached copy of files that were imported without any version param, which cost significant debugging time this session (see below).
+- **Cache-busting**: every internal script/module import now carries a `?v=N` query param (bumped to `v=22` as of this writing) — **bump it on every future edit to `character.js`/`profile.js`/`arena3d.js`/`dashboard.js`**, or the static dev server (`npx serve`) can silently keep serving a stale cached copy of files that were imported without any version param, which cost significant debugging time this session (see below).
 
 ## How the character pipeline got here (skip if just fixing bugs)
 
@@ -87,6 +87,96 @@ including the one-shot clips (`HitReaction`, `Reloading`), which are played with
 start pose and clamping there. In practice they're crossfaded out immediately so it isn't visible,
 but if a one-shot animation ever looks like it rewinds at the end, this is why — the fix would be
 to only apply it to clips that actually loop.
+
+## READ THIS FIRST — current state (most recent session)
+
+**The game is deployed, playable, and has real multiplayer working between real
+browsers.** Live preview (share this): <https://chocolate-gull-388433.hostingersite.com/play>
+
+`neegy.life` is deliberately still the **V1 2D page** — the user has NOT launched
+yet. `index.html` is the V1 arcade; the new homepage is parked at `home.html`.
+**To launch: `cp home.html index.html` and push.** That one swap is the cutover.
+Do not do it without being asked.
+
+### Deployment (all working)
+
+- Hostinger **Web App** (Node), auto-deploys from `main` on every push. There is
+  no way to turn auto-deploy off — Hostinger support confirmed. **Every push
+  restarts the server and ends in-progress matches.** Do not push while people
+  are playing; ask first.
+- `neegy.life` is a **separate static deploy of the same `main` branch**. This
+  bit us: replacing `index.html` published the new homepage to the live domain
+  unintentionally. Anything written to `index.html` goes live immediately.
+- Env vars set in Hostinger: `X_CONSUMER_KEY`, `X_CONSUMER_SECRET`, `DATA_DIR`
+  (`/home/u932119236/domains/chocolate-gull-388433.hostingersite.com/neegy-data`,
+  deliberately outside `hbuilds/` so records survive redeploys).
+- Entry file must be `server.js` in Hostinger's settings; output directory empty.
+- `scripts/check-deploy.mjs <url>` verifies the deploy incl. a raw WebSocket
+  handshake. `scripts/load-test.mjs` measures concurrency.
+
+### X sign-in: WORKING (one-click redirect)
+
+Real player `@EDthemountain` is in the store. Callback URLs must be registered
+in the X portal **exactly, per origin** — the server sends whatever host it is
+served from, derived from `X-Forwarded-Proto`. `https://neegy.life/auth/x/callback`
+is registered; **register any new origin before switching domains** or sign-in
+breaks with error 415.
+
+### IN PROGRESS — paid upgrades (next session's job)
+
+The user's spec: **0.1 SOL → 10 extra lives** (1 usable per match), and
+**0.1 SOL → 5 private-server games** (password-protected rooms, creator sets the
+password). Must be **fully automated** — no manual involvement.
+
+**Treasury address (validated: 44 chars, decodes to 32 bytes):**
+`6ocgsbQ463HtiYhT2M5Bp15XbsNA2H2Qh4TYhSgFFmfe`
+
+Decisions already made with the user:
+- **Devnet first**, then flip to mainnet.
+- **Solana Pay QR + `solana:` link**, no wallet SDK (keeps zero dependencies).
+  Confirmed to the user: this needs **no business verification or KYC** — funds
+  go wallet-to-wallet, the server only *reads* the chain.
+- Mechanics before payment.
+
+**Done and tested:**
+- `store.mjs`: `extraLives`/`privateGames` balances, `grantEntitlement`,
+  `spendEntitlement` (returns null when empty — callers must refuse, not treat
+  as zero), `entitlementsOf`, `findPlayerByHandle`.
+- `POST /api/admin/grant` (header `x-admin-token`, needs `ADMIN_TOKEN` env; 404s
+  when unset). Verified: refuses missing and wrong tokens, grants correctly.
+  **This is also the manual-repair path if a real payment ever fails to credit.**
+- `/api/me` and the WebSocket `welcome` both carry balances.
+
+**Written but NOT yet verified — finish this first:**
+- Private rooms: `createRoom({password})`, scrypt + per-room salt, timing-safe
+  compare, `isPrivate` flag in summaries (password never leaves the server),
+  `joinRoom(room, client, password)`.
+- `reviveOwnEntity()` — spends one extra life, one per match per *client* (so
+  leave/rejoin cannot buy a second), server-side because health is.
+- Private matches spend a credit at **countdown**, not room creation.
+- Protocol: `create` takes `password`, `join` takes `password`, new `revive`
+  message, `revived` broadcast.
+- **Integration test is at
+  `<scratchpad>/test-upgrades.mjs` and last scored 4/13.** The failures cascade
+  from "private room created", so it is probably one bug near room creation
+  rather than thirteen. Start there.
+
+**Not started:** any payment code. No client UI for either feature (no "Create
+private server" button, no extra-life prompt on death, upgrades panel still
+says COMING SOON).
+
+### Recent bug fixes worth not regressing
+
+- **Mouse look** broke for everyone arriving from the lobby: pointer lock was
+  requested only inside `startGame()`, which auto-runs with no user gesture and
+  is `async` besides, so the click's activation was already spent. Now requested
+  from a **canvas click handler** with a "CLICK TO LOOK AROUND" prompt.
+- **Remote bullets were invisible** — relayed shots spawned only a muzzle flash.
+  Now spawn a real round with `dmg: 0` owned by the remote fighter, which the
+  collision loop already refuses to file a claim for. Both details matter or
+  every shot counts twice.
+- `.env` absent meant `loadEnv()` returned early and ignored `process.env`
+  entirely — deployed servers saw no credentials, no PORT, no DATA_DIR.
 
 ## Launch readiness (added when the grenade removal landed)
 

@@ -112,7 +112,61 @@ stops firing on its own, and there is nothing to undo. The X callback
 `https://neegy.life/auth/x/callback` is already registered, so sign-in works
 the moment it switches.
 
-### Payments are OFF until two env vars are set on the Web App
+### LIVE ON MAINNET. Real SOL. The env vars that must exist
+
+    PORT=3000
+    TREASURY_ADDRESS=6ocgsbQ463HtiYhT2M5Bp15XbsNA2H2Qh4TYhSgFFmfe
+    ADMIN_TOKEN=<long random string>
+    SOLANA_CLUSTER=mainnet-beta
+    DATA_DIR=/home/u932119236/domains/chocolate-gull-388433.hostingersite.com/neegy-data
+    X_CONSUMER_KEY / X_CONSUMER_SECRET
+
+**`PORT=3000` IS LOAD-BEARING AND COST 30 MINUTES OF DOWNTIME.** Read this
+before touching the environment variables panel again.
+
+Editing env vars in hPanel **dropped the platform-injected PORT**. The app fell
+back to its development default (5174) while Hostinger's proxy kept forwarding
+to 3000, so every request 503'd — and the runtime logs showed a *completely
+clean startup* the whole time, because from inside the process nothing was
+wrong. It does not look like a config problem; it looks like a crash that
+isn't there.
+
+Two defences are now in place:
+
+- the server accepts `PORT`, `APP_PORT`, `SERVER_PORT`, `NODE_PORT`, `HTTP_PORT`
+- startup prints `port: 3000 (from PORT)`, or a loud warning when none was
+  provided. **Check that line first** whenever the site 503s.
+
+`ADMIN_TOKEN` gates `POST /api/admin/grant`, which is the only way to repair a
+payment that is taken but not credited. 404 means it is unset; 403 means it is
+set and guarding correctly.
+
+### Storage is confirmed persistent
+
+`payments: 3` and `players: 1` survived several restarts, so `payments.json`
+outlives deploys — which is the one that matters, since it is the only record
+that someone paid. `GET /api/health` reports `storageWritable` plus the
+players/sessions/payments counts and the cluster; it is the fastest way to
+check the box is still holding what it should.
+
+One record was lost when neegy.life was attached to the Web App (2 players ->
+1). No payments existed then, so nothing that mattered went with it.
+
+### Ops notes learned the hard way
+
+- **`SIGTERM -- shutting down` in the logs is normal.** It is the platform
+  cycling the process on each deploy or env change, not a crash.
+- The temporary `chocolate-gull-388433.hostingersite.com` URL **is dead** —
+  connecting the domain moved it rather than adding one. `neegy.life` is the
+  only origin now. `DATA_DIR` still names the old directory and still works;
+  it is an absolute path that survived the move, so **do not "tidy" it**
+  without moving the files first.
+- The homepage's fallback in `home.js` (send players to the game host when
+  this origin has no backend) is now dormant, because neegy.life answers
+  `/api/me` itself. Leave it: it is the safety net if the domain is ever moved
+  back to a static site.
+
+### Historical: what the setup looked like before it went live
 
     TREASURY_ADDRESS=6ocgsbQ463HtiYhT2M5Bp15XbsNA2H2Qh4TYhSgFFmfe
     ADMIN_TOKEN=<any long random string>

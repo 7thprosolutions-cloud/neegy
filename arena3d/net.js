@@ -171,10 +171,18 @@ export function ready(timeoutMs = 2500) {
 
 export const setName = (name) => send({ t: "name", name });
 export const listRooms = () => send({ t: "rooms" });
-export const createRoom = (name, mode) => send({ t: "create", name, mode });
-export const joinRoom = (roomId) => send({ t: "join", roomId });
+// A password makes the room private. It is sent once, hashed server-side, and
+// never comes back down -- no client, including this one, is ever told a room's
+// password, so the creator has to remember what they typed.
+export const createRoom = (name, mode, password = null) =>
+  send({ t: "create", name, mode, password: password || undefined });
+export const joinRoom = (roomId, password = null) =>
+  send({ t: "join", roomId, password: password || undefined });
 export const leaveRoom = () => send({ t: "leave" });
 export const startMatch = () => send({ t: "start" });
+// Spends one extra life to get back into a match we are dead in. The server
+// rules on it: it owns health, and it owns the balance.
+export const revive = () => send({ t: "revive" });
 export const sendEntities = (ents) => send({ t: "ents", ents });
 export const sendHit = (target, damage) => send({ t: "hit", target, damage });
 export const sendShot = (shot) => send({ t: "shot", ...shot });

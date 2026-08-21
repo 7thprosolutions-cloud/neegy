@@ -147,23 +147,84 @@ Decisions already made with the user:
   **This is also the manual-repair path if a real payment ever fails to credit.**
 - `/api/me` and the WebSocket `welcome` both carry balances.
 
-**Written but NOT yet verified — finish this first:**
-- Private rooms: `createRoom({password})`, scrypt + per-room salt, timing-safe
-  compare, `isPrivate` flag in summaries (password never leaves the server),
-  `joinRoom(room, client, password)`.
-- `reviveOwnEntity()` — spends one extra life, one per match per *client* (so
-  leave/rejoin cannot buy a second), server-side because health is.
-- Private matches spend a credit at **countdown**, not room creation.
-- Protocol: `create` takes `password`, `join` takes `password`, new `revive`
-  message, `revived` broadcast.
-- **Integration test is at
-  `<scratchpad>/test-upgrades.mjs` and last scored 4/13.** The failures cascade
-  from "private room created", so it is probably one bug near room creation
-  rather than thirteen. Start there.
+**Now VERIFIED — `scripts/test-upgrades.mjs` scores 18/18.** (It needs a seeded
+fixture player; the exact setup commands are in the file's header comment.)
+Covered: private room creation, the `isPrivate` flag, the password never
+reaching any client, wrong/right password, the credit spent at countdown, the
+revive, one-per-match enforcement, and that a refused revive charges nothing.
 
-**Not started:** any payment code. No client UI for either feature (no "Create
-private server" button, no extra-life prompt on death, upgrades panel still
-says COMING SOON).
+Two bugs were fixed to get there:
+
+1. **The creator was locked out of their own private room.** `joinRoom()`
+   skipped the password check for anyone already in `room.clients`, on the
+   assumption that the creator was. They are not: `createRoom()` records them
+   as `hostId` but the `joinRoom()` call immediately after is what puts them in
+   `clients` — so at that instant the creator looks like an outsider arriving
+   with no password. Everything downstream failed because there was never a
+   room to join. The exemption is now `room.hostId === client.id`.
+
+2. **An extra life was unspendable in 1v1.** A death that wiped a team ended
+   the match on the very next 66ms tick, so the revive always arrived to a room
+   already in state `over`. `checkMatchOver()` now holds the result open for
+   `REVIVE_WINDOW_MS` (7s) — **but only when the wiped side actually has
+   someone holding a spendable extra life**, so ordinary matches still end on
+   the same tick they always did (measured: 64ms vs 7153ms). Both directions
+   are regression-tested.
+
+**Protocol note for the client work:** the server emits a one-shot
+`{t:"reviveWindow", team, ms}` on the tick the window opens. Drive the death
+prompt's countdown off that rather than hardcoding 7s, or the prompt and the
+server's deadline will drift apart. `create` takes `password`, `join` takes
+`password`, `revive` spends the life, `revived` broadcasts the result.
+
+### Client UI for upgrades: DONE and verified in a real browser
+
+All of it was driven through the actual UI against a live server, not asserted
+from reading the code.
+
+**Dashboard**
+- Create form has a **Private server** checkbox + password field. The whole
+  control is gated, with the reason shown next to it: `sign in with X to host
+  one` / `no private games left` / `needs a game server`. All three states were
+  checked in the browser. A password under 3 characters is refused client-side
+  without tearing down the form.
+- Private rooms are **listed with a lock badge** and a `UNLOCK` button rather
+  than hidden, so friends find the server by name instead of swapping room ids.
+- Clicking `UNLOCK` opens a styled password dialog (not `window.prompt`, which
+  browsers suppress and which is indistinguishable from a phishing box). A
+  wrong password shows the server's message **inside the dialog** and keeps it
+  open; the right one closes it and drops them in the lobby.
+- The lobby shows the lock, `· PRIVATE`, and the host's start button reads
+  **START · SPENDS 1 CREDIT** — a paid action never sits behind a bare button.
+- UPGRADES panel shows **real balances** from the server, live. Signed out it
+  hides them entirely and nudges to sign in; showing "0 extra lives" to someone
+  who has simply not signed in reads as a broken balance.
+
+**In game (`?room=`)**
+- On the `reviveWindow` message, a centred prompt offers **USE EXTRA LIFE (N
+  left)** with a bar draining against the server's own deadline. Press **R** or
+  click.
+- Accepting restores the fighter, exits spectator mode, and the match carries
+  on. Verified end to end: browser died, clicked, `revived` broadcast reached
+  the other player, match did **not** end, balance went 10 → 9.
+- Letting it expire is also verified: the prompt disappears and the match is
+  called, charging nothing.
+
+Two deliberate choices worth knowing:
+- The prompt **releases pointer lock**, because a button that cannot be clicked
+  is worse than one click to re-lock afterwards. The existing "CLICK TO LOOK
+  AROUND" hint covers the way back in, and **R** works without releasing.
+- The countdown length comes from the server's `ms`, never a constant in the
+  client, so the bar can only ever promise less time than the server honours.
+
+**Testing note:** the in-game prompt cannot be exercised by hand at browser-tool
+latency — the window is 7s and a tool round-trip eats most of it. What worked
+was arming an in-page poller that clicks the instant the prompt appears, then
+triggering the kill from a scripted Node opponent that speaks the wire protocol
+(the harness in `scripts/test-upgrades.mjs` is reusable for this).
+
+**Not started:** any payment code. The two real products in the panel are
+priced but their buttons stay disabled until checkout exists.
 
 ### Recent bug fixes worth not regressing
 
@@ -234,7 +295,7 @@ between clients. See the authority split in `server/README-multiplayer.md`.
 
 ## Cache-busting gotcha (cost real time this session)
 
-`character.js`/`profile.js` were originally imported from `arena3d.js`/`dashboard.js` with **no** `?v=` query param at all, and the `?v=1` on the top-level `<script>` tags was never bumped across many edits. The static dev server (`npx serve`) and/or the browser cached these aggressively, so several rounds of genuinely-correct fixes to `character.js` may have silently never reached the browser being tested. Every internal import now has a version param — **always bump every `?v=N` occurrence across `index.html`, `dashboard.html`, `arena3d.js`, `dashboard.js`, `character.js`'s own imports, etc. together, in lockstep, on every edit**, and tell the user to hard-refresh, not just reload.
+`character.js`/`profile.js` were originally imported from `arena3d.js`/`dashboard.js` with **no** `?v=` query param at all, and the `?v=1` on the top-level `<script>` tags was never bumped across many edits. The static dev server (`npx serve`) and/or the browser cached these aggressively, so several rounds of genuinely-correct fixes to `character.js` may have silently never reached the browser being tested. Every internal import now has a version param — **always bump every `?v=N` occurrence across `index.html`, `dashboard.html`, `arena3d.js`, `dashboard.js`, `character.js`'s own imports, etc. together, in lockstep, on every edit** (currently `v=23`; `grep -rn '?v=' --include=*.js --include=*.html .` finds them all), and tell the user to hard-refresh, not just reload.
 
 ## What's left (explicitly out of scope so far, by design)
 

@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=22";
-import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=22";
-import { submitMatchResult } from "/arena3d/account.js?v=22";
-import * as MP from "/arena3d/mp.js?v=22";
-import { mp } from "/arena3d/mp.js?v=22";
+import { loadRiggedCharacterAsset, instantiateRiggedCharacter, WHITE } from "/arena3d/character.js?v=23";
+import { loadProfile, recordMatchResult, MODES, XP_PER_KILL, XP_PER_GAME } from "/arena3d/profile.js?v=23";
+import { submitMatchResult } from "/arena3d/account.js?v=23";
+import * as MP from "/arena3d/mp.js?v=23";
+import { mp } from "/arena3d/mp.js?v=23";
 
 // ---------- DOM ----------
 const canvas = document.getElementById("game");
@@ -23,6 +23,10 @@ const redAliveCountEl = document.getElementById("redAliveCount");
 const blueTeamSizeEl = document.getElementById("blueTeamSize");
 const redTeamSizeEl = document.getElementById("redTeamSize");
 const spectatorNote = document.getElementById("spectatorNote");
+const revivePrompt = document.getElementById("revivePrompt");
+const reviveBtn = document.getElementById("reviveBtn");
+const reviveCount = document.getElementById("reviveCount");
+const reviveTimerFill = document.getElementById("reviveTimerFill");
 const debugReadout = document.getElementById("debugReadout");
 const crosshair = document.getElementById("crosshair");
 
@@ -914,6 +918,7 @@ function resetMatch() {
   fighters = [];
   matchStats = { kills: 0, deaths: 0 };
   spectatorMode = false;
+  hideRevivePrompt();
 
   const botNames = pickBotNames(TEAM_SIZE * 2 - 1);
   let botNameIdx = 0;
@@ -1392,6 +1397,9 @@ function updateAI(f, dt) {
 // ---------- input ----------
 window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
+  // Reachable without letting go of the mouse, and only live while the prompt
+  // is actually up -- R does nothing the rest of the time.
+  if (k === "r") requestRevive();
   keys.add(k);
 });
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
@@ -1648,6 +1656,14 @@ function update(dt) {
   for (const f of fighters) updateFighter(f, dt);
   MP.reportOwned(fighters);
   if (buildCooldown > 0) buildCooldown = Math.max(0, buildCooldown - dt);
+
+  // The bar drains against the server's deadline, so it can only ever promise
+  // less time than the server will honour, never more.
+  if (!revivePrompt.classList.contains("hidden")) {
+    const remaining = MP.reviveMsRemaining();
+    reviveTimerFill.style.transform = `scaleX(${Math.max(0, remaining / reviveWindowTotalMs)})`;
+    if (remaining <= 0) hideRevivePrompt();
+  }
 
   if (!spectatorMode && player && !player.alive) {
     spectatorMode = true;
@@ -1933,6 +1949,7 @@ function showOverlay(title, subtitle, buttonText, showDashboardBtn) {
   squadStatus.classList.add("hidden");
   buildHint.classList.add("hidden");
   spectatorNote.classList.add("hidden");
+  revivePrompt.classList.add("hidden");
   debugReadout.classList.add("hidden");
   lockHint && lockHint.classList.add("hidden");
   crosshair.style.display = "none";
@@ -2009,6 +2026,67 @@ function clientIdOf(entityId) {
   return entityId.startsWith("p:") ? entityId.slice(2) : null;
 }
 
+// ---------- extra lives ----------
+//
+// The server holds the result open for a few seconds when a team is wiped and
+// someone on it can still buy back in. That pause is the only moment this
+// prompt makes sense, so it is driven entirely by the server's message rather
+// than by our own death: dying with no lives left, or as the first casualty of
+// a 5v5, must not put a buy button on screen.
+
+// The window's full length, as the server reported it -- only used to scale
+// the draining bar, so it must come from the message, not a constant here.
+let reviveWindowTotalMs = 7000;
+
+function showRevivePrompt() {
+  if (!MP.canRevive() || !player || player.alive) return;
+  reviveCount.textContent = `(${mp.extraLives} left)`;
+  reviveBtn.disabled = false;
+  revivePrompt.classList.remove("hidden");
+  // Spending a life needs a click, and a click needs a cursor.
+  document.exitPointerLock && document.exitPointerLock();
+}
+
+function hideRevivePrompt() {
+  revivePrompt.classList.add("hidden");
+}
+
+function requestRevive() {
+  if (revivePrompt.classList.contains("hidden") || reviveBtn.disabled) return;
+  reviveBtn.disabled = true;
+  reviveBtn.textContent = "…";
+  MP.requestRevive();
+}
+
+reviveBtn.addEventListener("click", requestRevive);
+
+function applyNetReviveWindow(msg) {
+  reviveWindowTotalMs = msg.ms || reviveWindowTotalMs;
+  showRevivePrompt();
+}
+
+// Anyone can be revived, not just us -- a squadmate coming back has to reappear
+// on our screen too, or we would keep shooting at a body the server considers
+// alive.
+function applyNetRevived(msg) {
+  const f = MP.fighterFor(msg.id);
+  if (!f) return;
+  f.alive = true;
+  f.hp = msg.hp;
+  f.hitFlash = 0;
+  hideRevivePrompt();
+  reviveBtn.textContent = "USE EXTRA LIFE ";
+  reviveBtn.appendChild(reviveCount);
+  if (f !== player) return;
+
+  // Back on our feet: undo everything the death transition did.
+  spectatorMode = false;
+  spectatorNote.classList.add("hidden");
+  buildHint.classList.remove("hidden");
+  crosshair.style.display = "block";
+  updateLockHint();
+}
+
 function applyNetShot(msg) {
   if (Number.isFinite(msg.x)) spawnMuzzleFlash(msg.x, msg.y, msg.z);
   playShootSfx(true);
@@ -2042,6 +2120,7 @@ function applyNetShot(msg) {
 function applyNetMatchLost(reason) {
   if (state !== "playing") return;
   state = "over";
+  hideRevivePrompt();
   document.exitPointerLock && document.exitPointerLock();
   showOverlay(
     "MATCH ENDED",
@@ -2056,6 +2135,7 @@ function applyNetMatchLost(reason) {
 function applyNetOver(msg) {
   if (state !== "playing") return;
   state = "over";
+  hideRevivePrompt();
   document.exitPointerLock && document.exitPointerLock();
   const mine = msg.results.find((r) => r.id === clientIdOf(mp.myEntityId || ""));
   const won = mine ? mine.won : msg.winningTeam === (player.team === TEAM_BLUE ? 0 : 1);
@@ -2086,6 +2166,8 @@ async function startGame() {
       onDamage: applyNetDamage,
       onDeath: applyNetDeath,
       onOver: applyNetOver,
+      onReviveWindow: applyNetReviveWindow,
+      onRevived: applyNetRevived,
       onShot: applyNetShot,
       onMatchLost: applyNetMatchLost,
       onError: (message) => console.warn("multiplayer:", message),

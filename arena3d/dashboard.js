@@ -1,9 +1,9 @@
 import {
   loadProfile, saveProfile, loadCustomServers, addCustomServer,
   FLAVOR_SERVERS, MOCK_LEADERBOARD, MODES,
-} from "/arena3d/profile.js?v=22";
-import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=22";
-import * as net from "/arena3d/net.js?v=22";
+} from "/arena3d/profile.js?v=23";
+import { getAccount, logout, fetchLeaderboard } from "/arena3d/account.js?v=23";
+import * as net from "/arena3d/net.js?v=23";
 
 const playerNameEl = document.getElementById("playerName");
 const guestChip = document.getElementById("guestChip");
@@ -25,6 +25,21 @@ const newServerNameEl = document.getElementById("newServerName");
 const modePicker = document.getElementById("modePicker");
 const confirmCreateBtn = document.getElementById("confirmCreateBtn");
 const cancelCreateBtn = document.getElementById("cancelCreateBtn");
+const privateCheck = document.getElementById("privateCheck");
+const privateNote = document.getElementById("privateNote");
+const newServerPassword = document.getElementById("newServerPassword");
+
+const balancesEl = document.getElementById("balances");
+const balLivesEl = document.getElementById("balLives");
+const balGamesEl = document.getElementById("balGames");
+const upgradesSignedOut = document.getElementById("upgradesSignedOut");
+
+const passwordOverlay = document.getElementById("passwordOverlay");
+const passwordRoomName = document.getElementById("passwordRoomName");
+const passwordInput = document.getElementById("passwordInput");
+const passwordError = document.getElementById("passwordError");
+const passwordJoinBtn = document.getElementById("passwordJoinBtn");
+const passwordCancelBtn = document.getElementById("passwordCancelBtn");
 
 const lobbyOverlay = document.getElementById("lobbyOverlay");
 const lobbyServerName = document.getElementById("lobbyServerName");
@@ -50,6 +65,12 @@ let online = false;
 let netRooms = [];      // room summaries pushed by the server
 let currentRoom = null; // the room we are actually sitting in, server-side
 let myClientId = null;
+// Paid balances, authoritative from the server (`welcome`, then `entitlements`
+// after anything spends one). Never inferred locally -- the server owns these.
+let entitlements = { extraLives: 0, privateGames: 0 };
+// The private room we are mid-way through unlocking, so the password dialog
+// knows what it is asking about and where to send the answer.
+let pendingPrivateJoin = null;
 
 // ---------- profile / identity ----------
 
@@ -99,9 +120,11 @@ playerNameEl.addEventListener("change", () => {
 signOutBtn.addEventListener("click", async () => {
   await logout();
   account = null;
+  entitlements = { extraLives: 0, privateGames: 0 };
   renderIdentity();
   renderProfile();
   renderLeaderboard();
+  renderEntitlements();
 });
 
 // Resolve identity before first paint of the chips, so the header does not
@@ -114,6 +137,7 @@ signOutBtn.addEventListener("click", async () => {
   renderIdentity();
   renderProfile();
   renderLeaderboard();
+  renderEntitlements();
 
   const authResult = new URLSearchParams(location.search).get("auth");
   if (authResult === "denied") {
@@ -123,6 +147,52 @@ signOutBtn.addEventListener("click", async () => {
     history.replaceState(null, "", location.pathname);
   }
 })();
+
+// ---------- upgrades ----------
+
+// Two things move together here: what the sidebar says you own, and whether
+// the "Private server" box in the create form can be ticked at all. Creating a
+// private room charges the creator a credit at match start, so offering the box
+// to someone who cannot be charged (signed out, or out of credits) would only
+// produce a server that refuses to start.
+function renderEntitlements() {
+  const known = Boolean(account);
+  balancesEl.hidden = !known;
+  upgradesSignedOut.hidden = known;
+  balLivesEl.textContent = entitlements.extraLives;
+  balGamesEl.textContent = entitlements.privateGames;
+
+  const row = document.getElementById("privateToggleRow");
+  let reason = "";
+  if (!backendAvailable) reason = "needs a game server";
+  else if (!account) reason = "sign in with X to host one";
+  else if (entitlements.privateGames <= 0) reason = "no private games left";
+
+  const allowed = !reason;
+  privateCheck.disabled = !allowed;
+  row.querySelector(".dash-check").classList.toggle("disabled", !allowed);
+  if (!allowed) {
+    privateCheck.checked = false;
+    newServerPassword.hidden = true;
+  }
+  privateNote.textContent = allowed
+    ? `${entitlements.privateGames} private game${entitlements.privateGames === 1 ? "" : "s"} left`
+    : reason;
+  privateNote.classList.toggle("warn", !allowed && Boolean(account));
+}
+
+privateCheck.addEventListener("change", () => {
+  newServerPassword.hidden = !privateCheck.checked;
+  if (privateCheck.checked) newServerPassword.focus();
+  else newServerPassword.value = "";
+});
+
+// The balance changes the moment anything spends one, and the server says so
+// rather than the browser guessing.
+net.on("entitlements", (msg) => {
+  entitlements = msg.entitlements || entitlements;
+  renderEntitlements();
+});
 
 function lobbyStatusToast(message) {
   const note = document.getElementById("playerNameNote");
@@ -174,7 +244,8 @@ function renderServers() {
   const servers = online
     ? netRooms.map((r) => ({
         id: r.id, name: r.name, mode: r.mode, hostName: r.hostName,
-        players: r.players, capacity: r.capacity, state: r.state, live: true,
+        players: r.players, capacity: r.capacity, state: r.state,
+        isPrivate: r.isPrivate, live: true,
       }))
     : [...FLAVOR_SERVERS, ...loadCustomServers()];
 
@@ -189,11 +260,13 @@ function renderServers() {
     const full = s.live && s.players >= s.capacity;
     const running = s.live && s.state === "playing";
     const disabled = full || running;
-    const label = running ? "IN MATCH" : full ? "FULL" : "JOIN";
+    // Private rooms are listed, not hidden: friends find the server by name and
+    // are asked for the password on JOIN, rather than having to swap room ids.
+    const label = running ? "IN MATCH" : full ? "FULL" : s.isPrivate ? "UNLOCK" : "JOIN";
     return `
       <div class="dash-server-card">
         <div class="dash-server-info">
-          <span class="dash-server-name">${escapeHtml(s.name)}</span>
+          <span class="dash-server-name">${s.isPrivate ? '<span class="dash-lock-badge" title="Private — password required">&#128274;</span> ' : ""}${escapeHtml(s.name)}</span>
           <span class="dash-server-meta">
             <span class="dash-mode-badge">${mode.label}</span>
             <span>host: ${escapeHtml(s.hostName)}</span>
@@ -232,13 +305,29 @@ modePicker.querySelector('[data-mode="1v1"]').classList.add("selected");
 
 confirmCreateBtn.addEventListener("click", () => {
   if (!requireName()) return;
+
+  // Checked before the form is torn down, so a rejected password leaves what
+  // they typed on screen to correct rather than wiping the whole form.
+  const wantsPrivate = privateCheck.checked && !privateCheck.disabled;
+  const password = wantsPrivate ? newServerPassword.value : "";
+  if (wantsPrivate && password.trim().length < 3) {
+    privateNote.textContent = "password needs at least 3 characters";
+    privateNote.classList.add("warn");
+    newServerPassword.focus();
+    return;
+  }
+
   const name = newServerNameEl.value.trim().slice(0, 24) || `${displayName() || "Player"}'s Server`;
   createServerForm.classList.add("hidden");
   newServerNameEl.value = "";
+  newServerPassword.value = "";
+  newServerPassword.hidden = true;
+  privateCheck.checked = false;
+  renderEntitlements();
 
   if (online) {
     // The server assigns the real id and tells everyone else it exists.
-    net.createRoom(name, selectedMode);
+    net.createRoom(name, selectedMode, wantsPrivate ? password : null);
     return;
   }
   const server = { id: "custom-" + Date.now(), name, mode: selectedMode, hostName: displayName() || "You" };
@@ -259,6 +348,14 @@ function requireName() {
 // ---------- lobby / matchmaking (mock -- fills with bots) ----------
 function joinLobby(server) {
   if (!requireName()) return;
+
+  // Someone else's private room: ask before knocking. Our own room is not
+  // routed here (the server puts the creator straight in), so this only ever
+  // asks a guest, never the person who set the password.
+  if (online && server.isPrivate) {
+    askForPassword(server);
+    return;
+  }
 
   if (online) {
     // Everything the lobby shows from here comes from the server's `room`
@@ -313,6 +410,53 @@ function joinLobby(server) {
     lobbyTimers.push(t);
   }
 }
+
+// ---------- private server password ----------
+
+function askForPassword(server) {
+  pendingPrivateJoin = server;
+  passwordRoomName.textContent = server.name;
+  passwordInput.value = "";
+  passwordError.hidden = true;
+  passwordJoinBtn.disabled = false;
+  passwordOverlay.classList.remove("hidden");
+  passwordInput.focus();
+}
+
+function closePasswordPrompt() {
+  pendingPrivateJoin = null;
+  passwordOverlay.classList.add("hidden");
+  passwordInput.value = "";
+}
+
+function submitPassword() {
+  if (!pendingPrivateJoin) return;
+  const password = passwordInput.value;
+  if (!password) {
+    showPasswordError("Enter the password.");
+    return;
+  }
+  passwordError.hidden = true;
+  passwordJoinBtn.disabled = true;
+  // The dialog stays up until the server rules on it: a `room` message means
+  // we are in (and closes it), an `error` means the password was wrong (and
+  // puts the reason where they are already looking).
+  net.joinRoom(pendingPrivateJoin.id, password);
+}
+
+function showPasswordError(message) {
+  passwordError.textContent = message;
+  passwordError.hidden = false;
+  passwordJoinBtn.disabled = false;
+  passwordInput.select();
+}
+
+passwordJoinBtn.addEventListener("click", submitPassword);
+passwordCancelBtn.addEventListener("click", closePasswordPrompt);
+passwordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitPassword();
+  if (e.key === "Escape") closePasswordPrompt();
+});
 
 // ---------- multiplayer bootstrap ----------
 //
@@ -370,7 +514,9 @@ net.on("status", (state) => setOnline(state === "open"));
 net.on("welcome", (msg) => {
   myClientId = msg.you.id;
   netRooms = msg.rooms || [];
+  entitlements = msg.you.entitlements || entitlements;
   renderServers();
+  renderEntitlements();
 });
 
 net.on("rooms", (msg) => {
@@ -379,7 +525,12 @@ net.on("rooms", (msg) => {
   if (!currentRoom) renderServers();
 });
 
-net.on("room", (msg) => renderNetLobby(msg.room));
+net.on("room", (msg) => {
+  // Getting room state at all means we were let in, so the password (if we
+  // were asked for one) was right.
+  if (pendingPrivateJoin) closePasswordPrompt();
+  renderNetLobby(msg.room);
+});
 
 net.on("left", () => {
   currentRoom = null;
@@ -387,9 +538,22 @@ net.on("left", () => {
   renderServers();
 });
 
+// An error means different things depending on what is on screen, and putting
+// all of them in the lobby status line meant a rejected password was written
+// to a panel the player could not see.
 net.on("error", (msg) => {
-  lobbyStatus.textContent = msg.message;
-  startMatchBtn.disabled = false;
+  if (pendingPrivateJoin) {
+    showPasswordError(msg.message);
+    return;
+  }
+  if (!lobbyOverlay.classList.contains("hidden")) {
+    lobbyStatus.textContent = msg.message;
+    startMatchBtn.disabled = false;
+    return;
+  }
+  // Nothing is open -- most likely a create or a start that was refused, so
+  // say so where they last clicked instead of silently doing nothing.
+  lobbyStatusToast(msg.message);
 });
 
 // The server says the match is live: hand off to the game page, which
@@ -415,6 +579,7 @@ function clearLobbyTimers() {
 
 cancelLobbyBtn.addEventListener("click", () => {
   clearLobbyTimers();
+  closePasswordPrompt();
   if (online) net.leaveRoom();
   currentRoom = null;
   lobbyOverlay.classList.add("hidden");
@@ -430,8 +595,9 @@ startMatchBtn.addEventListener("click", () => {
 function renderNetLobby(room) {
   currentRoom = room;
   const mode = MODES[room.mode] || { label: room.mode, teamSize: 1 };
-  lobbyServerName.textContent = room.name;
-  lobbyModeLabel.textContent = mode.label.toUpperCase();
+  // textContent, not innerHTML: room names are typed by other players.
+  lobbyServerName.textContent = (room.isPrivate ? "🔒 " : "") + room.name;
+  lobbyModeLabel.textContent = mode.label.toUpperCase() + (room.isPrivate ? " · PRIVATE" : "");
 
   const parts = [];
   for (const m of room.members) {
@@ -460,7 +626,11 @@ function renderNetLobby(room) {
       : "Everyone's here.";
     startMatchBtn.hidden = !iAmHost;
     startMatchBtn.disabled = false;
-    startMatchBtn.textContent = remaining > 0 ? "START WITH BOTS" : "START MATCH";
+    // Starting a private match spends one of the host's credits, so never let
+    // that happen behind an unlabelled button.
+    startMatchBtn.textContent = room.isPrivate && iAmHost
+      ? "START · SPENDS 1 CREDIT"
+      : remaining > 0 ? "START WITH BOTS" : "START MATCH";
   }
   lobbyOverlay.classList.remove("hidden");
 }

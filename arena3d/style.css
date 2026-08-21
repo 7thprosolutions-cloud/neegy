@@ -298,3 +298,79 @@ html, body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 .lock-hint.hidden { display: none; }
+
+/* ---------- extra-life prompt ----------
+   Centred and deliberately loud: it is on screen for a few seconds at most,
+   competing with a firefight, and it is asking to spend something the player
+   paid for. pointer-events stay on -- unlike the other HUD notes, this one is
+   the only clickable thing on screen at that moment. */
+.revive-prompt {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  text-align: center;
+  padding: 22px 30px;
+  border-radius: 18px;
+  background: rgba(20, 16, 12, 0.92);
+  border: 1px solid rgba(255, 179, 71, 0.55);
+  box-shadow: 0 0 40px rgba(255, 111, 111, 0.18);
+  font-family: inherit;
+}
+
+.revive-prompt.hidden { display: none; }
+
+.revive-title {
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #ff8a8a;
+  margin-bottom: 6px;
+}
+
+.revive-sub {
+  font-size: 13px;
+  color: #fff8e6;
+  margin-bottom: 16px;
+}
+
+.revive-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #201530;
+  background: linear-gradient(180deg, #ffe9a8, #ffb347);
+  border: none;
+  border-radius: 20px;
+  padding: 11px 24px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #b5762a;
+}
+
+.revive-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b5762a; }
+.revive-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Draining left-to-right, so the time remaining is readable at a glance
+   without anyone having to parse a number mid-fight. */
+.revive-timer {
+  height: 4px;
+  margin: 14px 0 10px;
+  border-radius: 2px;
+  background: rgba(255, 248, 230, 0.15);
+  overflow: hidden;
+}
+
+.revive-timer-fill {
+  height: 100%;
+  width: 100%;
+  background: #ffb347;
+  transform-origin: left center;
+}
+
+.revive-hint {
+  font-size: 11px;
+  color: #fff8e680;
+}
+.revive-hint strong { color: #ffe9a8; }

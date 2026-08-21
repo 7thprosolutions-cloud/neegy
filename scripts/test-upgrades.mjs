@@ -1,4 +1,15 @@
 // Exercises the private-server and extra-life rules over a real WebSocket.
+//
+// Needs a running server and the session id of a signed-in player who holds
+// exactly 10 extra lives and 5 private games -- the balance assertions are
+// absolute, so this runs against a fresh fixture, not your live data:
+//
+//   mkdir -p /tmp/neegy-test
+//   node -e "const fs=require('fs'),n=Date.now();fs.writeFileSync('/tmp/neegy-test/players.json',JSON.stringify({'x:999000111':{id:'x:999000111',xUserId:'999000111',handle:'testowner',name:'Test Owner',avatar:null,kills:0,deaths:0,xp:0,gamesPlayed:0,extraLives:10,privateGames:5,createdAt:n,lastSeen:n}}));fs.writeFileSync('/tmp/neegy-test/sessions.json',JSON.stringify({testsid:{playerId:'x:999000111',createdAt:n}}))"
+//   PORT=8331 DATA_DIR=/tmp/neegy-test node server/server.mjs &
+//   node scripts/test-upgrades.mjs 8331 testsid
+//
+// Re-running spends credits, so reset players.json between runs.
 import net from "node:net";
 import crypto from "node:crypto";
 
@@ -135,6 +146,74 @@ check("second revive in one match refused", Boolean(last(owner, "error")), last(
 
 const meFinal = await fetch(`http://127.0.0.1:${PORT}/api/me`, { headers: { Cookie: `neegy_sid=${SID}` } }).then((r) => r.json());
 check("refused revive did not charge", meFinal.player.extraLives === 9, `extraLives=${meFinal.player.extraLives}`);
+
+// ---------- the revive window ----------
+//
+// A death that wipes a team used to end the match on the very next tick, which
+// left no instant in which an extra life could be spent -- the paid item was
+// unusable in 1v1 and only accidentally usable in team modes. The result is
+// now held open briefly, but only for a side that actually has a spendable
+// life, so these two cases pull in opposite directions and both matter.
+
+// 1. Two guests, no entitlements: must still be called immediately.
+const g1 = await connect("");
+const g2 = await connect("");
+g1.send({ t: "hello", tabId: "pub-1" });
+g2.send({ t: "hello", tabId: "pub-2" });
+await wait(400);
+g1.send({ t: "create", name: "Public Duel", mode: "1v1" });
+await wait(300);
+const pubId = last(g1, "joined")?.roomId;
+g2.send({ t: "join", roomId: pubId });
+await wait(300);
+g1.send({ t: "start" });
+await wait(4200);
+const pubEnt = last(g1, "start")?.owned?.find((o) => !o.isBot)?.entityId;
+g2.send({ t: "hit", target: pubEnt, damage: 60 });
+await wait(200);
+const pubT0 = Date.now();
+g2.send({ t: "hit", target: pubEnt, damage: 60 });
+let pubOverMs = -1;
+for (let i = 0; i < 60; i++) {
+  await wait(50);
+  if (last(g1, "over")) { pubOverMs = Date.now() - pubT0; break; }
+}
+check("ordinary match still ends at once", pubOverMs >= 0 && pubOverMs < 1000, `called after ${pubOverMs}ms`);
+check("no window offered to players without lives", !last(g1, "reviveWindow"), "none offered");
+g1.socket.destroy();
+g2.socket.destroy();
+
+// 2. An eligible player who declines: the window must expire on its own rather
+//    than waiting forever for a revive that never comes, and charge nothing.
+const decliner = await connect(SID);
+const foe = await connect("");
+decliner.send({ t: "hello", tabId: "exp-1" });
+foe.send({ t: "hello", tabId: "exp-2" });
+await wait(400);
+const livesBefore = last(decliner, "welcome")?.you?.entitlements?.extraLives;
+decliner.send({ t: "create", name: "Expiry Test", mode: "1v1" });
+await wait(300);
+foe.send({ t: "join", roomId: last(decliner, "joined")?.roomId });
+await wait(300);
+decliner.send({ t: "start" });
+await wait(4200);
+const decEnt = last(decliner, "start")?.owned?.find((o) => !o.isBot)?.entityId;
+foe.send({ t: "hit", target: decEnt, damage: 60 });
+await wait(200);
+const decT0 = Date.now();
+foe.send({ t: "hit", target: decEnt, damage: 60 });
+let windowMs = -1, decOverMs = -1;
+for (let i = 0; i < 300; i++) {
+  await wait(50);
+  if (windowMs < 0 && last(decliner, "reviveWindow")) windowMs = Date.now() - decT0;
+  if (last(decliner, "over")) { decOverMs = Date.now() - decT0; break; }
+}
+check("window offered to a player holding lives", windowMs >= 0, `after ${windowMs}ms`);
+check("window expires without a revive", decOverMs > 6000 && decOverMs < 9000, `called after ${decOverMs}ms`);
+const meDeclined = await fetch(`http://127.0.0.1:${PORT}/api/me`, { headers: { Cookie: `neegy_sid=${SID}` } }).then((r) => r.json());
+check("declining the window costs nothing", meDeclined.player.extraLives === livesBefore, `extraLives=${meDeclined.player.extraLives}`);
+decliner.socket.destroy();
+foe.socket.destroy();
 
 owner.socket.destroy();
 friend.socket.destroy();

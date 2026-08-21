@@ -13,11 +13,16 @@
 // humans before it could ever be played or tested.
 import crypto from "node:crypto";
 import { MODES } from "./modes.mjs";
-import { recordMatch, spendEntitlement } from "./store.mjs";
+import { recordMatch, spendEntitlement, entitlementsOf } from "./store.mjs";
 
 const TICK_MS = 66; // ~15 snapshots/sec -- plenty for this pace, easy on bandwidth
 const LOBBY_COUNTDOWN_MS = 3000;
 const OVER_LINGER_MS = 8000;
+// How long a wiped team's last death is held open so an extra life can be
+// spent. Without this the match is called on the very next tick and an extra
+// life is unusable in 1v1 and only accidentally usable in team modes -- the
+// paid item would do nothing in the mode most people play.
+const REVIVE_WINDOW_MS = 7000;
 // Player-created rooms, on top of the always-on ones. At 10 players each this
 // is a ceiling of ~2000 concurrent players -- far beyond what one process
 // should be asked to hold, so the practical limit is CPU and bandwidth, not
@@ -150,8 +155,14 @@ function pickTeam(room) {
 export function joinRoom(room, client, password) {
   if (room.state === "playing") throw new Error("That match has already started.");
   if (room.clients.size >= room.teamSize * 2) throw new Error("That server is full.");
-  // The creator is already inside, so this only gates everyone else.
-  if (room.isPrivate && !room.clients.has(client.id) && !passwordMatches(room.password, password)) {
+  // Only the creator is exempt, and only because they join their own room in
+  // the same breath as making it: createRoom() records them as hostId but does
+  // not put them in `clients`, so at this instant they look like an outsider
+  // with no password. Without this the author of a private server is the one
+  // person who can never get into it.
+  const isCreator = room.hostId === client.id;
+  const inside = room.clients.has(client.id);
+  if (room.isPrivate && !isCreator && !inside && !passwordMatches(room.password, password)) {
     throw new Error("Wrong password for that private server.");
   }
   if (client.room && client.room !== room) leaveRoom(client);
@@ -255,6 +266,7 @@ export function startMatch(room) {
   room.state = "playing";
   room.entities.clear();
   room.revived.clear(); // extra lives are one per match, so reset the ledger
+  room.reviveWindowEndsAt = 0;
   room.startedAt = now();
   for (const c of room.clients.values()) {
     room.scores.set(c.id, { kills: 0, deaths: 0 });
@@ -370,16 +382,44 @@ export function reviveOwnEntity(room, client) {
   room.revived.add(client.id);
   ent.hp = 100;
   ent.alive = true;
+  // Their team is back in the fight, so the pending result is void.
+  room.reviveWindowEndsAt = 0;
   return { entityId: ent.id, remaining };
+}
+
+// Is there anyone on this team who could still spend an extra life? Gating the
+// hold-open window on a real, spendable balance is what keeps it from adding
+// seven seconds of dead air to every ordinary match: with nobody eligible the
+// result is declared on the same tick it always was.
+function someoneCanRevive(room, team) {
+  for (const c of room.clients.values()) {
+    if (c.team !== team || !c.playerId || room.revived.has(c.id)) continue;
+    if (entitlementsOf(c.playerId).extraLives > 0) return true;
+  }
+  return false;
 }
 
 export function checkMatchOver(room) {
   if (room.state !== "playing") return null;
   const alive = { [TEAM_BLUE]: 0, [TEAM_RED]: 0 };
   for (const ent of room.entities.values()) if (ent.alive) alive[ent.team]++;
-  if (alive[TEAM_BLUE] > 0 && alive[TEAM_RED] > 0) return null;
+  if (alive[TEAM_BLUE] > 0 && alive[TEAM_RED] > 0) {
+    room.reviveWindowEndsAt = 0;
+    return null;
+  }
 
   const winningTeam = alive[TEAM_BLUE] > 0 ? TEAM_BLUE : TEAM_RED;
+  const losingTeam = winningTeam === TEAM_BLUE ? TEAM_RED : TEAM_BLUE;
+  if (someoneCanRevive(room, losingTeam)) {
+    if (!room.reviveWindowEndsAt) {
+      room.reviveWindowEndsAt = now() + REVIVE_WINDOW_MS;
+      // Announced once, on the tick it opens, so the client can show an
+      // accurate countdown rather than guessing the server's deadline.
+      return { t: "reviveWindow", team: losingTeam, ms: REVIVE_WINDOW_MS };
+    }
+    if (now() < room.reviveWindowEndsAt) return null;
+  }
+  room.reviveWindowEndsAt = 0;
   room.state = "over";
   room.overAt = now();
 
@@ -423,4 +463,4 @@ function round(n) {
   return Math.round((n || 0) * 100) / 100;
 }
 
-export { TICK_MS, TEAM_BLUE, TEAM_RED };
+export { TICK_MS, TEAM_BLUE, TEAM_RED, REVIVE_WINDOW_MS };

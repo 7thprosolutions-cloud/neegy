@@ -13,7 +13,7 @@
 //     by interpolating toward the last snapshot the server sent.
 //   - Health, damage, deaths and the end of the match are decided by the
 //     server. A local bullet hit reports a claim and waits to be told.
-import * as net from "/arena3d/net.js?v=22";
+import * as net from "/arena3d/net.js?v=23";
 
 export const mp = {
   active: false,
@@ -28,6 +28,13 @@ export const mp = {
   roster: [],                // entities from the most recent snapshot
   started: false,
   result: null,
+  // Extra lives we hold, straight from the server's `welcome`/`entitlements`.
+  // Read-only here: this only decides whether to *offer* the prompt, never
+  // whether a revive is allowed -- the server rules on that.
+  extraLives: 0,
+  // Set while the server is holding the result open for a revive.
+  reviveWindowUntil: 0,
+  revivedThisMatch: false,
   // true while we are asking the server whether our match still exists after a
   // reconnect (see joinMatch)
   resyncing: false,
@@ -41,7 +48,7 @@ export function isMultiplayerRequested() {
 
 // Resolves with the `start` payload once the server has told us which slots we
 // own, or null if there is no reachable server / no such room.
-export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot, onError, onMatchLost } = {}) {
+export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot, onError, onMatchLost, onReviveWindow, onRevived } = {}) {
   if (!ROOM_ID) return null;
   net.connect();
   // Same reasoning as the dashboard: a cold connection (DNS + TLS, or a server
@@ -61,6 +68,23 @@ export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot,
   });
   net.on("damage", (msg) => onDamage?.(msg));
   net.on("death", (msg) => onDeath?.(msg));
+
+  // The balance is only ever told to us, never counted here -- a client that
+  // tracked its own would drift the moment a second tab spent one.
+  net.on("welcome", (msg) => { mp.extraLives = msg.you?.entitlements?.extraLives ?? mp.extraLives; });
+  net.on("entitlements", (msg) => { mp.extraLives = msg.entitlements?.extraLives ?? mp.extraLives; });
+
+  // The losing side has a few seconds to buy back in before this becomes the
+  // result. `ms` is the server's own deadline; never substitute a local guess,
+  // or the prompt will offer time the server will not honour.
+  net.on("reviveWindow", (msg) => {
+    mp.reviveWindowUntil = performance.now() + (msg.ms || 0);
+    onReviveWindow?.(msg);
+  });
+  net.on("revived", (msg) => {
+    mp.reviveWindowUntil = 0;
+    onRevived?.(msg);
+  });
   net.on("shot", (msg) => onShot?.(msg));
   net.on("over", (msg) => { mp.result = msg; onOver?.(msg); });
   net.on("error", (msg) => {
@@ -116,6 +140,8 @@ export async function joinMatch({ onSnapshot, onDamage, onDeath, onOver, onShot,
   for (const o of start.owned) mp.bySlot.set(`${o.team}:${o.slot}`, o.entityId);
   mp.myEntityId = start.owned.find((o) => !o.isBot)?.entityId || null;
   mp.started = true;
+  mp.revivedThisMatch = false;
+  mp.reviveWindowUntil = 0;
   return start;
 }
 
@@ -187,6 +213,23 @@ export function applyRemoteTransforms(fighters, dt) {
     f.facing += d * LERP;
     f._netAnim = target.anim;
   }
+}
+
+// Whether it is worth putting the prompt on screen at all. The server still
+// has the final say -- this only avoids offering a button that would be
+// refused, which reads as broken.
+export function canRevive() {
+  return mp.active && mp.extraLives > 0 && !mp.revivedThisMatch && mp.reviveWindowUntil > performance.now();
+}
+
+export function requestRevive() {
+  if (!mp.active) return;
+  mp.revivedThisMatch = true; // optimistic, so a double-click cannot ask twice
+  net.revive();
+}
+
+export function reviveMsRemaining() {
+  return Math.max(0, mp.reviveWindowUntil - performance.now());
 }
 
 export function claimHit(targetFighter, damage) {

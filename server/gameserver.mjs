@@ -176,10 +176,12 @@ export function attachGameServer(httpServer) {
       }
       if (room.state === "playing") {
         broadcast(room, snapshot(room));
-        const over = checkMatchOver(room);
-        if (over) {
-          broadcast(room, over);
-          pushRoomList();
+        // Either the result, or the one-shot notice that the losing side has
+        // a few seconds to spend an extra life before it becomes the result.
+        const verdict = checkMatchOver(room);
+        if (verdict) {
+          broadcast(room, verdict);
+          if (verdict.t === "over") pushRoomList();
         }
       }
     }

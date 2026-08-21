@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena Dashboard</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=22" />
-<link rel="stylesheet" href="/arena3d/dashboard.css?v=22" />
+<link rel="stylesheet" href="/arena3d/style.css?v=23" />
+<link rel="stylesheet" href="/arena3d/dashboard.css?v=23" />
 </head>
 <body class="dash-body">
 
@@ -52,6 +52,20 @@
               <button class="dash-mode-opt" data-mode="3v3">3v3</button>
               <button class="dash-mode-opt" data-mode="5v5">5v5</button>
             </div>
+            <!-- Private servers cost a credit per match and are charged to the
+                 creator's account, so this whole block is only offered to a
+                 signed-in player who has credits. dashboard.js swaps in the
+                 reason when it cannot be offered. -->
+            <div class="dash-private-toggle" id="privateToggleRow">
+              <label class="dash-check">
+                <input id="privateCheck" type="checkbox" />
+                <span>Private server</span>
+              </label>
+              <span class="dash-private-note" id="privateNote"></span>
+            </div>
+            <input id="newServerPassword" type="password" maxlength="40"
+                   placeholder="Password for your friends" autocomplete="new-password" hidden />
+
             <div class="dash-create-actions">
               <button id="confirmCreateBtn" class="dash-btn-small dash-btn-primary">CREATE &amp; JOIN</button>
               <button id="cancelCreateBtn" class="dash-btn-small dash-btn-ghost">CANCEL</button>
@@ -59,7 +73,9 @@
           </div>
 
           <div id="serverList" class="dash-server-list"></div>
-          <p class="dash-note">Anyone can create a server and invite friends — every server stays public, so anyone can drop in. A match won't start until all slots are filled.</p>
+          <p class="dash-note">Anyone can create a server and invite friends. Public servers are open to
+            everyone; a private one is listed by name but needs the password its creator set. Empty slots
+            fill with bots, so a match never waits on strangers.</p>
         </section>
       </main>
 
@@ -78,12 +94,31 @@
 
         <section class="dash-panel">
           <h2>UPGRADES</h2>
+
+          <!-- What you already own. Hidden until we know who you are, because
+               "0 extra lives" reads as a broken balance to someone who has
+               simply not signed in yet. -->
+          <div class="dash-balances" id="balances" hidden>
+            <div class="dash-stat-row"><span>Extra lives</span><strong id="balLives">0</strong></div>
+            <div class="dash-stat-row"><span>Private server games</span><strong id="balGames">0</strong></div>
+          </div>
+          <p class="dash-note dash-signin-nudge" id="upgradesSignedOut" hidden>
+            Sign in with X to buy and hold upgrades — they are tied to your handle, not this browser.
+          </p>
+
           <div class="dash-upgrade-card">
             <div class="dash-upgrade-info">
-              <strong>Life Refill</strong>
-              <span>+10 full life bars, usable in-game</span>
+              <strong>Extra Lives</strong>
+              <span>10 revives · one per match</span>
             </div>
-            <button class="dash-btn-small dash-btn-locked" disabled>0.1 SOL · COMING SOON</button>
+            <button class="dash-btn-small dash-btn-locked" data-buy="extraLives" disabled>0.1 SOL</button>
+          </div>
+          <div class="dash-upgrade-card">
+            <div class="dash-upgrade-info">
+              <strong>Private Servers</strong>
+              <span>5 password-locked matches</span>
+            </div>
+            <button class="dash-btn-small dash-btn-locked" data-buy="privateGames" disabled>0.1 SOL</button>
           </div>
           <div class="dash-upgrade-card">
             <div class="dash-upgrade-info">
@@ -99,6 +134,7 @@
             </div>
             <button class="dash-btn-small dash-btn-locked" disabled>COMING SOON</button>
           </div>
+          <p class="dash-note" id="payNote">Checkout opens once SOL payments are switched on.</p>
         </section>
       </aside>
     </div>
@@ -120,7 +156,23 @@
     </div>
   </div>
 
-  <script type="module" src="/arena3d/dashboard.js?v=22"></script>
+  <!-- Asked for when joining someone else's private server. Deliberately a
+       real dialog rather than window.prompt(), which some browsers suppress
+       and which cannot be styled or told apart from a phishing box. -->
+  <div id="passwordOverlay" class="dash-lobby-overlay hidden">
+    <div class="dash-lobby-card">
+      <h2 id="passwordRoomName">Private Server</h2>
+      <p class="dash-lobby-mode">PASSWORD REQUIRED</p>
+      <input id="passwordInput" type="password" maxlength="40" placeholder="Password" autocomplete="off" />
+      <p id="passwordError" class="dash-password-error" hidden></p>
+      <div class="dash-lobby-actions">
+        <button id="passwordJoinBtn" class="dash-btn-small dash-btn-primary">JOIN</button>
+        <button id="passwordCancelBtn" class="dash-btn-small dash-btn-ghost">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/arena3d/dashboard.js?v=23"></script>
   <script src="/beta.js?v=1"></script>
 </body>
 </html>

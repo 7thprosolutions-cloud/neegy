@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>$NEEGY — Arena 3D (V3 preview)</title>
-<link rel="stylesheet" href="/arena3d/style.css?v=22" />
+<link rel="stylesheet" href="/arena3d/style.css?v=23" />
 <script type="importmap">
 {
   "imports": {
@@ -40,6 +40,18 @@
   <div id="buildHint" class="build-hint hidden">Q: WALL &nbsp; E: RAMP &nbsp; <span id="structCount">0/8</span> up</div>
 
   <div id="lockHint" class="lock-hint hidden">🖱 CLICK TO LOOK AROUND</div>
+  <!-- Shown only while the server is holding the result open for a revive.
+       The countdown comes from the server's own `reviveWindow` message rather
+       than a hardcoded number here, so the bar can never promise more time
+       than the server will actually honour. -->
+  <div id="revivePrompt" class="revive-prompt hidden">
+    <div class="revive-title">YOU ARE DOWN</div>
+    <div class="revive-sub">Spend an extra life to get back in the fight?</div>
+    <button id="reviveBtn" class="revive-btn">USE EXTRA LIFE <span id="reviveCount"></span></button>
+    <div class="revive-timer"><div id="reviveTimerFill" class="revive-timer-fill"></div></div>
+    <div class="revive-hint">Press <strong>R</strong>, or let it run out to stay down</div>
+  </div>
+
   <div id="spectatorNote" class="spectator-note hidden">👁 YOU DIED — SPECTATING YOUR SQUAD &nbsp; (WASD to fly, Space/Shift up-down)</div>
 
   <pre id="debugReadout" class="debug-readout hidden"></pre>
@@ -60,6 +72,6 @@
     <p class="footnote">V3 preview &mdash; 3D build, not linked from the live site yet. Character is a flat billboard sprite, not a 3D model.</p>
   </div>
 
-  <script type="module" src="/arena3d/arena3d.js?v=22"></script>
+  <script type="module" src="/arena3d/arena3d.js?v=23"></script>
 </body>
 </html>

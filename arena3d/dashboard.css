@@ -461,3 +461,85 @@
 }
 .dash-net-badge.online { background: rgba(52, 211, 153, 0.16); color: #6ee7b7; }
 .dash-net-badge.offline { background: rgba(148, 163, 184, 0.16); color: #cbd5e1; }
+
+/* ---------- private servers ---------- */
+
+.dash-private-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dash-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: #fff8e6;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dash-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: #ffb347;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* Disabled reads as "not for you" rather than "broken" only if the reason is
+   visible next to it, which is what this line is for. */
+.dash-check.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.dash-check.disabled input { cursor: not-allowed; }
+
+.dash-private-note {
+  font-size: 11px;
+  color: #fff8e680;
+}
+.dash-private-note.warn { color: #ffb347; }
+
+/* The lock sits in the server row next to the mode badge, so a private server
+   is identifiable in the list before anyone clicks JOIN. */
+.dash-lock-badge {
+  color: #ffb347;
+  font-weight: bold;
+}
+
+.dash-lobby-card input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 248, 230, 0.08);
+  border: 1px solid rgba(255, 233, 168, 0.3);
+  border-radius: 10px;
+  color: #fff8e6;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  margin-bottom: 12px;
+}
+
+.dash-lobby-card input:focus { outline: none; border-color: #ffb347; }
+
+.dash-password-error {
+  margin: -4px 0 12px;
+  font-size: 12px;
+  color: #ff8a8a;
+}
+
+/* ---------- upgrade balances ---------- */
+
+.dash-balances {
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 233, 168, 0.18);
+}
+
+.dash-balances .dash-stat-row strong { color: #ffb347; }
+
+.dash-signin-nudge { margin-top: 0; margin-bottom: 12px; }

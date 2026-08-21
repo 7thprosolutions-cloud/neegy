@@ -28,6 +28,8 @@ const env = loadEnv();
 // restarted between my two requests", which is exactly the question when
 // records go missing.
 const STARTED_AT = Date.now();
+// How many times we have lost the race for the port to an outgoing instance.
+let portRetries = 0;
 // Which port to listen on, and it is worth spelling out why this is not just
 // `env.PORT`.
 //
@@ -580,8 +582,18 @@ server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error("");
     console.error(`Port ${PORT} is already in use -- something else is running there.`);
-    console.error("Stop that process, or start this one on another port:  PORT=5175 npm start");
+    console.error("On a managed host this usually means the previous instance has not");
+    console.error("finished releasing the port yet. Retrying a few times rather than");
+    console.error("giving up, because exiting here leaves nothing serving at all.");
     console.error("");
+    // A deploy replaces this process while the old one is still shutting down,
+    // so losing the race is expected and recoverable -- give the old instance
+    // a moment and take the port when it lets go.
+    if (portRetries < 10) {
+      portRetries += 1;
+      setTimeout(() => server.listen(PORT, HOST), 500);
+      return;
+    }
   } else {
     console.error("");
     console.error("Server failed to start:", err.message);
@@ -624,18 +636,43 @@ server.listen(PORT, HOST, () => {
   }
 });
 
-// Stop accepting new connections and let in-flight requests finish, rather
-// than cutting every player off mid-request on a deploy or restart.
+// Shut down FAST. This was the cause of a long outage and the reasoning is
+// worth keeping.
+//
+// A graceful drain sounds right: stop listening, let in-flight requests
+// finish. But server.close() waits for every connection to end, and this
+// process holds WEBSOCKETS, which are long-lived by design and never end on
+// their own. So the old process sat there owning port 3000.
+//
+// Meanwhile the platform sends SIGTERM and starts the replacement about 200ms
+// later. The new process found the port still taken, exited with EADDRINUSE,
+// and nothing was left serving -- a 503 whose logs show a perfectly healthy
+// startup immediately beforehand.
+//
+// Being courteous to a handful of in-flight requests is not worth being late
+// to release the port. Cut the sockets, flush, and go.
+let shuttingDown = false;
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
-    console.log(`
-${signal} -- shutting down`);
+    // One shutdown per process. Without this a repeated signal restarts the
+    // sequence and prints the same line again, which reads like a storm of
+    // signals when it is one.
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal} -- shutting down`);
+
     // Writes are coalesced on a short timer, so force any pending one out
-    // before exiting or the last match's results are lost.
+    // first or the last match's results (and any payment record) are lost.
     flushNow();
+
+    // Destroy live sockets rather than waiting for them. Without this,
+    // close() never calls back while any player is connected.
+    server.closeAllConnections?.();
     server.close(() => process.exit(0));
-    // Do not hang forever on a wedged socket (WebSockets are long-lived by
-    // design and will never close on their own).
-    setTimeout(() => process.exit(0), 5000).unref();
+
+    // Deliberately NOT unref'd, and deliberately short: the platform will not
+    // wait seconds for us, and holding the port is worse than dropping a
+    // request. If close() has not finished by now, leave anyway.
+    setTimeout(() => process.exit(0), 400);
   });
 }

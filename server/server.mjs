@@ -24,6 +24,10 @@ import {
 } from "./payments.mjs";
 
 const env = loadEnv();
+// Lets a health check tell "still the process I looked at" from "quietly
+// restarted between my two requests", which is exactly the question when
+// records go missing.
+const STARTED_AT = Date.now();
 const PORT = Number(env.PORT || 5174);
 // Behind a reverse proxy on a VPS you usually want to bind loopback only and
 // let the proxy face the internet; 0.0.0.0 is right when this IS the edge.
@@ -347,6 +351,33 @@ async function handleApi(req, res, url) {
       payments: paymentsForPlayer(me.id).map(({ reference, product, status, signature, createdAt, cluster }) => ({
         reference, product, status, signature, createdAt, cluster,
       })),
+    });
+  }
+
+  // A one-glance answer to "is the box still holding what it should?". Counts
+  // and flags only -- never the path, which would tell the internet where the
+  // records live for nothing in return.
+  //
+  // `storageWritable: false` is the one that matters and the reason this
+  // exists: a managed host that deploys into a fresh directory, or a DATA_DIR
+  // left pointing at a renamed folder, loses every record on each restart.
+  // Kills and XP surviving is nice; payments.json surviving is the difference
+  // between honouring a payment and having no evidence it happened.
+  if (p === "/api/health" && req.method === "GET") {
+    const store = describeStorage();
+    const cfg = paymentConfig();
+    return sendJson(res, 200, {
+      ok: true,
+      storageWritable: store.writable,
+      storageConfigured: store.configured,
+      players: store.players,
+      sessions: store.sessions,
+      payments: store.payments,
+      paymentsEnabled: cfg.enabled,
+      cluster: cfg.cluster,
+      realMoney: cfg.cluster === "mainnet-beta",
+      startedAt: STARTED_AT,
+      uptimeSeconds: Math.round((Date.now() - STARTED_AT) / 1000),
     });
   }
 
